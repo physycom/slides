@@ -1,0 +1,30 @@
+{
+  "start_date" : "2020-03-24 00:00:00",
+  "stop_date"  : "2020-03-24 01:00:00",
+
+  "work_dir" : "/home/ale/Codice/slides/work_ws/output/",
+
+  "model0" : {
+    "data_dir" : "/home/ale/Codice/slides/work_ws/output/m0_data"
+  },
+
+  "cities" : {
+    "bari" : {
+
+    },
+    "dubrovnik" : {
+
+    },
+    "ferrara" : {
+
+    },
+    "sybenik" : {
+
+    },
+    "venezia" : {
+
+    }
+  },
+
+  "last" : {}
+}

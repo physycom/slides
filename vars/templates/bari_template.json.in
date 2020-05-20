@@ -1,0 +1,13 @@
+{
+  "file_pro"        : "$ENV{WORKSPACE}/slides/vars/cart/bari.pro",
+  "file_pnt"        : "$ENV{WORKSPACE}/slides/vars/cart/bari.pnt",
+
+  "enable_population" : true,
+  "enable_netstate"   : true,
+
+  "dt": 10,
+  "sampling_dt": 60,
+
+  "enable_gui": true,
+  "sampling_graphics": 20
+}

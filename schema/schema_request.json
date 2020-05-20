@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "properties": {
+    "start_date": {
+      "type": "string",
+      "description": "Start datetime in CEST timezone, format '%Y-%m-%d %H:%M:%S'."
+    },
+    "stop_date": {
+      "type": "string",
+      "description": "Stop datetime in CEST timezone, format '%Y-%m-%d %H:%M:%S'."
+    },
+    "sampling_dt": {
+      "type": "integer",
+      "description": "Time interval between samplings, in seconds."
+    }
+  },
+  "required" : [
+    "start_date",
+    "stop_date",
+    "sampling_dt"
+  ]
+}
