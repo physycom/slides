@@ -60,7 +60,7 @@ async def root():
 @app.post('/sim')
 async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
   client_ip = request.client.host
-  log_print('Request from {}'.format(client_ip))
+  log_print('Request from {} for city {}'.format(client_ip, citytag))
 
   # check body
   try:
@@ -78,7 +78,7 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
     with open(cfg_file) as cin: cfg = json.load(cin)
     cw = conf(cfg, logger)
   except Exception as e:
-    log_print('walker config generation failed : {}'.format(e))
+    log_print('conf init failed : {}'.format(e))
     raise HTTPException(status_code=500, detail='conf init failed : {}'.format(e))
 
   if city not in cw.cparams:
@@ -87,7 +87,7 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
   try:
     simconf = cw.generate(start_date, stop_date, city)
   except Exception as e:
-    log_print('walker config generation failed : {}'.format(e))
+    log_print('config generation failed : {}'.format(e))
     raise HTTPException(status_code=500, detail='conf generation failed : {}'.format(e))
 
   wdir = cw.wdir

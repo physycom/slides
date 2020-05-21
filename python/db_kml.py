@@ -7,7 +7,6 @@ import os
 import zipfile
 import io
 import re
-import xml.etree.ElementTree as ET
 #import numpy as np
 from datetime import datetime, timedelta
 #from dateutil import tz
@@ -171,8 +170,6 @@ class db_kml:
       raise Exception('[db_kml] kml parsing for {} coming soon'.format(citytag))
 
     log_print('Parsed {} locations for {}'.format(len(locations), citytag), self.logger)
-    #for k,v in locations.items():
-    #  print(k, v)
 
     attr = {}
     for kl, kv in locations.items():
