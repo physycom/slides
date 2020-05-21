@@ -1,0 +1,27 @@
+{
+  "work_dir" : "/output",
+
+  "model0" : {
+    "data_dir" : "/output/m0_data"
+  },
+
+  "cities" : {
+    "bari" : {
+
+    },
+    "dubrovnik" : {
+
+    },
+    "ferrara" : {
+
+    },
+    "sybenik" : {
+
+    },
+    "venezia" : {
+
+    }
+  },
+
+  "last" : {}
+}

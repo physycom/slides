@@ -10,6 +10,7 @@ declare -a cities=(
 
 mkdir -p output
 
+#curl -s -S --header "Content-Type: application/json" --request POST --data @body.json http://127.0.0.1:8000/sim?city=ferrara
 for c in ${cities[@]}; do
   curl -s -S \
     --header "Content-Type: application/json" \

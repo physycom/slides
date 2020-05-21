@@ -100,7 +100,7 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
 
   confs = json.dumps(simconf)
 
-  with open(wdir + '/wsconf_{}.json'.format(city), 'w') as outc: json.dump(simconf, outc, indent=2)
+  with open(wdir + '/wsconf_sim_{}.json'.format(city), 'w') as outc: json.dump(simconf, outc, indent=2)
   #print(confs, flush=True)
 
   s = simulation(confs)
@@ -111,10 +111,11 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
     log_print('{} simulation done in {}'.format(city, datetime.now() - tsim))
 
     pof = s.poly_outfile()
-    #print('Polygon output file : {}'.format(pof))
+    log_print('Polygon counters output file : {}'.format(pof))
     dfp = pd.read_csv(pof, sep = ';')
-    #print(dfp)
-    pp = { t : { i : x for i, x in enumerate(v[2:]) if x != 0 } for t, v in zip(dfp.timestamp, dfp.values)}
+    print(dfp)
+    pp = { t : { i : int(x) for i, x in enumerate(v[1:]) if x != 0 } for t, v in zip(dfp.timestamp, dfp.values)}
+    #pp = {}
     #print(pp.keys())
     ret = {
       'message' : 'simulation OK',
@@ -158,7 +159,7 @@ async def sim_walker_post(request: Request, city: str = 'ferrara'):
   if s.is_valid():
     base =  wdir + '/poly_{}'.format(city)
     geojf = base + '.geojson'
-    if os.path.exists(geojf):
+    if not os.path.exists(geojf):
       s.dump_poly_geojson(base)
     with open(base + '.geojson') as gin:
       geoj = json.load(gin)
