@@ -58,7 +58,7 @@ async def root():
   return {'message': 'slides simulation ws'}
 
 @app.post('/sim')
-async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
+async def sim_walker_post(body: dict, request: Request, citytag: str = 'ferrara'):
   client_ip = request.client.host
   log_print('Request from {} for city {}'.format(client_ip, citytag))
 
@@ -68,7 +68,7 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
     start_date = body['start_date']
     stop_date = body['stop_date']
     sampling_dt = body['sampling_dt']
-    log_print('Parameters {} - {} sampling {} city {}'.format(start_date, stop_date, sampling_dt, city))
+    log_print('Parameters {} - {} sampling {} city {}'.format(start_date, stop_date, sampling_dt, citytag))
   except Exception as e:
     raise HTTPException(status_code=400, detail='invalid request payload : {}'.format(e))
 
@@ -81,11 +81,11 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
     log_print('conf init failed : {}'.format(e))
     raise HTTPException(status_code=500, detail='conf init failed : {}'.format(e))
 
-  if city not in cw.cparams:
-    raise HTTPException(status_code=400, detail='city \'{}\' not available. Current cities : {}'.format(city, list(cw.cparams.keys())))
+  if citytag not in cw.cparams:
+    raise HTTPException(status_code=400, detail='city \'{}\' not available. Current cities : {}'.format(citytag, list(cw.cparams.keys())))
 
   try:
-    simconf = cw.generate(start_date, stop_date, city)
+    simconf = cw.generate(start_date, stop_date, citytag)
   except Exception as e:
     log_print('config generation failed : {}'.format(e))
     raise HTTPException(status_code=500, detail='conf generation failed : {}'.format(e))
@@ -100,12 +100,12 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
   simconf['start_date'] = start_date
   simconf['stop_date'] = stop_date
   simconf['sampling_dt'] = sampling_dt
-  simconf['state_basename'] = wdir + '/r_{}'.format(city)
+  simconf['state_basename'] = wdir + '/r_{}'.format(citytag)
   #simconf['explore_node'] = [0]
 
   confs = json.dumps(simconf)
 
-  with open(wdir + '/wsconf_sim_{}.json'.format(city), 'w') as outc: json.dump(simconf, outc, indent=2)
+  with open(wdir + '/wsconf_sim_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
   #print(confs, flush=True)
 
   s = simulation(confs)
@@ -113,7 +113,7 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
   if s.is_valid():
     tsim = datetime.now()
     s.run()
-    log_print('{} simulation done in {}'.format(city, datetime.now() - tsim))
+    log_print('{} simulation done in {}'.format(citytag, datetime.now() - tsim))
 
     pof = s.poly_outfile()
     log_print('Polyline counters output file : {}'.format(pof))
@@ -122,7 +122,7 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
 
     ret = {
       'message' : 'simulation OK',
-      'city' : city,
+      'city' : citytag,
       'data' : pp
     }
   else:
@@ -130,9 +130,9 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
   return ret
 
 @app.get('/poly')
-async def sim_walker_post(request: Request, city: str = 'ferrara'):
+async def sim_walker_post(request: Request, citytag: str = 'ferrara'):
   client_ip = request.client.host
-  log_print('Request from {}'.format(client_ip))
+  log_print('Request from {}'.format(client_ip, citytag))
 
   # init conf
   try:
@@ -150,16 +150,16 @@ async def sim_walker_post(request: Request, city: str = 'ferrara'):
     os.mkdir(wdir)
     os.chdir(wdir)
 
-  with open(cw.cparams[city]) as tin:
+  with open(cw.cparams[citytag]) as tin:
     simconf = json.load(tin)
   confs = json.dumps(simconf)
-  with open(wdir + '/wsconf_geojson_{}.json'.format(city), 'w') as outc: json.dump(simconf, outc, indent=2)
+  with open(wdir + '/wsconf_geojson_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
   #print(confs, flush=True)
 
   s = simulation(confs)
 
   if s.is_valid():
-    base =  wdir + '/poly_{}'.format(city)
+    base =  wdir + '/poly_{}'.format(citytag)
     geojf = base + '.geojson'
     if not os.path.exists(geojf):
       s.dump_poly_geojson(base)
@@ -170,6 +170,6 @@ async def sim_walker_post(request: Request, city: str = 'ferrara'):
       'geojson' : geoj
     }
   else:
-    raise HTTPException(status_code=501, detail='geojson creation for \'{}\' failed'.format(city))
+    raise HTTPException(status_code=501, detail='geojson creation for \'{}\' failed'.format(citytag))
 
   return ret
