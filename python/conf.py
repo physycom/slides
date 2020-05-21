@@ -30,6 +30,9 @@ class conf:
     try:
       sys.path.append(os.path.join(os.environ['WORKSPACE'], 'minimocas', 'python'))
       from model0 import model0
+
+      sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
+      from db_kml import db_kml
     except Exception as e:
       raise Exception('library load failed : {}'.format(e))
 
@@ -40,31 +43,45 @@ class conf:
     try:
       self.wdir = config['work_dir']
       if not os.path.exists(self.wdir): os.mkdir(self.wdir)
+
       self.m0 = model0(config['model0'])
+
+      self.dbk = db_kml(config['kml_data'])
 
     except Exception as e:
       raise Exception('conf init failed : {}'.format(e)) from e
 
-  def generate(self, start_date, stop_date, tag):
-    if tag not in self.cparams:
-      raise Exception('tag not found')
+  def generate(self, start_date, stop_date, citytag):
+    if citytag not in self.cparams:
+      raise Exception('[db_kml] generate citytag {} not found'.format(citytag))
 
     start = datetime.strptime(start_date, self.date_format)
     stop = datetime.strptime(stop_date, self.date_format)
     mid_start = datetime.strptime(start.strftime('%Y-%m-%d 00:00:00'), self.date_format)
 
-    with open(self.cparams[tag]) as tin:
+    with open(self.cparams[citytag]) as tin:
       conf = json.load(tin)
 
     conf['start_date'] = start_date
     conf['stop_date'] = stop_date
 
-    conf['state_basename'] = self.wdir + '/{}'.format(tag)
-    sources = {}
+    conf['state_basename'] = self.wdir + '/{}'.format(citytag)
 
     rates_per_day = 24 * 60 * 60 // self.rates_dt
     ttrates = { t : 0 for t in [ mid_start + i*timedelta(seconds=self.rates_dt) for i in range(rates_per_day) ] }
 
+    # attractions
+    attr = self.dbk.generate(citytag)
+    if len(attr) > 6:
+      log_print('*********** Temporary lowering of attractions number')
+      attr = { k : v for k, v in list(attr.items())[:6] }
+    conf['attractions'] = attr
+
+    sources = {}
+    # sources
+    # < insert code >
+
+    # control
     df = self.m0.rescaled_data(start, stop, max = 1000)
     #print(df)
     rates = { t.replace(

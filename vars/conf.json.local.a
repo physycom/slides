@@ -2,10 +2,21 @@
   "start_date" : "2020-03-24 00:00:00",
   "stop_date"  : "2020-03-24 01:00:00",
 
-  "work_dir" : "/home/ale/Codice/slides/work_ws/output/",
+  "work_dir" : "/home/ale/Codice/slides/work_ws/output",
 
   "model0" : {
     "data_dir" : "/home/ale/Codice/slides/work_ws/output/m0_data"
+  },
+
+  "kml_data" : {
+    "work_dir" : "/home/ale/Codice/slides/work_ws/output/kml_data",
+    "mymaps_id" : {
+      "bari"      : "1tMT72fYkC2FxAo5SUQFI-fxwn3sp42Z0",
+      "dubrovnik" : "1p55-Ymxo0RZ4FuYdswPIbUXWn31JjP71",
+      "ferrara"   : "1IbOOegfBLI4KzYaEYUfY8LtehmRXzZgl",
+      "sybenik"   : "1SidW_DatIhV7O5QMFGNyUjNT34nyQr0P",
+      "venezia"   : "nope"
+    }
   },
 
   "cities" : {
