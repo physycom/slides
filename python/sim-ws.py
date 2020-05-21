@@ -14,13 +14,7 @@ from jsonschema import validate, exceptions
 from datetime import datetime
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException
-
-##########################
-#### log function ########
-##########################
-def log_print(*args, **kwargs):
-  print('{} [slides-sim-ws] '.format(datetime.now()), end='', flush=True)
-  print(*args, **kwargs, flush=True)
+import logging
 
 #################
 ### libraries ###
@@ -47,6 +41,17 @@ except Exception as e:
 #### fastAPI ####
 #################
 app = FastAPI()
+logger = logging.getLogger("gunicorn.error")
+
+##########################
+#### log function ########
+##########################
+def logs(s):
+  head = '{} [sim-ws] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
+  return head + s
+
+def log_print(s):
+  logger.info(logs(s))
 
 @app.get('/')
 async def root():
@@ -71,7 +76,7 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
   try:
     cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf.json')
     with open(cfg_file) as cin: cfg = json.load(cin)
-    cw = conf(cfg)
+    cw = conf(cfg, logger)
   except Exception as e:
     log_print('walker config generation failed : {}'.format(e))
     raise HTTPException(status_code=500, detail='conf init failed : {}'.format(e))
@@ -111,17 +116,14 @@ async def sim_walker_post(body: dict, request: Request, city: str = 'ferrara'):
     log_print('{} simulation done in {}'.format(city, datetime.now() - tsim))
 
     pof = s.poly_outfile()
-    log_print('Polygon counters output file : {}'.format(pof))
+    log_print('Polyline counters output file : {}'.format(pof))
     dfp = pd.read_csv(pof, sep = ';')
-    print(dfp)
     pp = { t : { i : int(x) for i, x in enumerate(v[1:]) if x != 0 } for t, v in zip(dfp.timestamp, dfp.values)}
-    #pp = {}
-    #print(pp.keys())
+
     ret = {
       'message' : 'simulation OK',
       'city' : city,
       'data' : pp
-      #'data' : { 'polygon_population': dfp.to_json(orient='values') }
     }
   else:
     raise HTTPException(status_code=501, detail='simulation init failed')

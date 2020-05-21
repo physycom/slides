@@ -10,16 +10,23 @@ from dateutil import tz
 ##########################
 #### log function ########
 ##########################
-def log_print(*args, **kwargs):
-  print('[conf] ', end='', flush=True)
-  print(*args, **kwargs, flush=True)
+def logs(s):
+  head = '{} [conf] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
+  return head + s
 
-##########################
-### walker config class ##
-##########################
+def log_print(s, logger = None):
+  if logger:
+    logger.info(logs(s))
+  else:
+    print(logs(s), flush=True)
+
+#####################
+### config class ####
+#####################
 class conf:
 
-  def __init__(self, config):
+  def __init__(self, config, logger = None):
+    self.logger = logger
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.creation_dt = 30
     self.rates_dt = 5 * 60
@@ -34,7 +41,7 @@ class conf:
       sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
       from db_kml import db_kml
     except Exception as e:
-      raise Exception('library load failed : {}'.format(e))
+      raise Exception('[conf] library load failed : {}'.format(e))
 
     self.config = config
     self.cparams = { k : os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'templates', '{}_template.json'.format(k)) for k in config['cities'].keys() }
@@ -46,7 +53,7 @@ class conf:
 
       self.m0 = model0(config['model0'])
 
-      self.dbk = db_kml(config['kml_data'])
+      self.dbk = db_kml(config['kml_data'], self.logger)
 
     except Exception as e:
       raise Exception('conf init failed : {}'.format(e)) from e
@@ -73,7 +80,7 @@ class conf:
     # attractions
     attr = self.dbk.generate(citytag)
     if len(attr) > 6:
-      log_print('*********** Temporary lowering of attractions number')
+      log_print('*********** Temporary lowering of attractions number', self.logger)
       attr = { k : v for k, v in list(attr.items())[:6] }
     conf['attractions'] = attr
 
