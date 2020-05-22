@@ -58,7 +58,7 @@ async def root():
   return {'message': 'slides simulation ws'}
 
 @app.post('/sim')
-async def sim_walker_post(body: dict, request: Request, citytag: str = 'ferrara'):
+async def sim_walker_post(body: dict, request: Request, citytag: str = 'null'):
   client_ip = request.client.host
   log_print('Request from {} for city {}'.format(client_ip, citytag))
 
@@ -74,7 +74,7 @@ async def sim_walker_post(body: dict, request: Request, citytag: str = 'ferrara'
 
   # init conf
   try:
-    cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf.json')
+    cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf', 'conf.json')
     with open(cfg_file) as cin: cfg = json.load(cin)
     cw = conf(cfg, logger)
   except Exception as e:
@@ -130,18 +130,22 @@ async def sim_walker_post(body: dict, request: Request, citytag: str = 'ferrara'
   return ret
 
 @app.get('/poly')
-async def sim_walker_post(request: Request, citytag: str = 'ferrara'):
+async def sim_walker_post(request: Request, citytag: str = 'null'):
   client_ip = request.client.host
   log_print('Request from {}'.format(client_ip, citytag))
 
   # init conf
   try:
-    cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf.json')
+    cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf', 'conf.json')
     with open(cfg_file) as cin: cfg = json.load(cin)
     cw = conf(cfg)
+
   except Exception as e:
     log_print('conf generation failed : {}'.format(e))
     raise HTTPException(status_code=500, detail='geojson conf init failed : {}'.format(e))
+
+  if citytag not in cw.cparams:
+    raise HTTPException(status_code=401, detail='malformed url citytag {} not in {}'.format(citytag, cw.cparams.keys()))
 
   wdir = cw.wdir
   try:

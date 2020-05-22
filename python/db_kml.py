@@ -136,6 +136,7 @@ class db_kml:
             'lon' : float(lon)
           }
 
+      #####################################################
       explore_kmeans = False
       if explore_kmeans:
         data = [ [ name, pro['lat'], pro['lon'] ] for name, pro in locations.items() ]
@@ -165,9 +166,25 @@ class db_kml:
         df.plot.scatter(x = 'lon', y = 'lat', c=df.cluster_label, s=50, cmap='viridis')
         plt.scatter(centers[:, 0], centers[:, 1], c='black', s=200, alpha=0.5)
         plt.show()
+      #####################################################
 
     elif citytag == 'venezia':
-      raise Exception('[db_kml] kml parsing for {} coming soon'.format(citytag))
+      locations = {}
+      for pm in folder.Placemark:
+        name = pm.name.text.strip()
+        point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
+
+        if point:
+          description = pm.ExtendedData.Data[2].value.text
+          if re.match('.*poi A.*', description) == None: continue
+          #if re.match('.*destinazione.*', description) == None: continue
+          print(name, '---', description)
+          lon, lat, z = point[0].coordinates.text.split(',')
+          locations[name] = {
+            'type' : 'Point',
+            'lat' : float(lat),
+            'lon' : float(lon)
+          }
 
     log_print('Parsed {} locations for {}'.format(len(locations), citytag), self.logger)
 
@@ -193,9 +210,11 @@ class db_kml:
       try:
         log_print('Retrieving kml data for {}'.format(citytag), self.logger)
         url = 'https://mapsengine.google.com/map/kml?mid={}'.format(city['mid'])
-        data = get(url)
+        response = get(url)
+        if response.status_code != 200:
+          raise Exception('[db_kml] map download failed with code {}'.format(response.status_code))
         #print(data.content)
-        zf = zipfile.ZipFile(io.BytesIO(data.content), 'r')
+        zf = zipfile.ZipFile(io.BytesIO(response.content), 'r')
         #print(zf.namelist())
         kmzfiles = [ f for f in zf.namelist() if re.match('.*doc.kml.*', f) ]
         if len(kmzfiles) != 1: print('warning mulitple content')
