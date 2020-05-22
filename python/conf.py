@@ -35,8 +35,10 @@ class conf:
     self.UTC = tz.gettz('UTC')
 
     try:
-      sys.path.append(os.path.join(os.environ['WORKSPACE'], 'minimocas', 'python'))
-      from model0 import model0
+      #sys.path.append(os.path.join(os.environ['WORKSPACE'], 'minimocas', 'python'))
+      #from model0 import model0
+      sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
+      from model import model0, model1
 
       sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
       from db_kml import db_kml
@@ -52,6 +54,12 @@ class conf:
       if not os.path.exists(self.wdir): os.mkdir(self.wdir)
 
       self.m0 = model0(config['model0'])
+
+      #per alle, mancano tutti i cosi di sicurezz varia, questo è fatto un po' a cavolo :D
+      self.enable_m1 = False
+      if (config['cities'][config['city_tag']] != {}):
+        self.enable_m1 = True
+        self.m1 = model1(config['cities'][config['city_tag']]['model1'])
 
       self.dbk = db_kml(config['kml_data'], self.logger)
 
@@ -90,7 +98,7 @@ class conf:
 
     # control
     df = self.m0.rescaled_data(start, stop, max = 1000)
-    #print(df)
+
     rates = { t.replace(
         year=mid_start.year,
         month=mid_start.month,
@@ -103,7 +111,7 @@ class conf:
 
     locals = {
       'is_control'    : True,
-      'creation_dt'   : self.creation_dt,
+      'creation_dt'   : self.creation_dt ,
       'creation_rate' : [ int(v) for v in tt.values() ],
       'pawns' : {
         'locals' : {
@@ -115,7 +123,37 @@ class conf:
     }
     sources['LOCALS'] = locals
 
+    if(self.enable_m1):
+      df = self.m1.rescaled_data(start,stop)
+
+      rates = { t.replace(
+          year=mid_start.year,
+          month=mid_start.month,
+          day=mid_start.day
+        ) : v
+        for t,v in zip(df.index, df['data'].values)
+      }
+      tt = { t : 0 for t in [ mid_start + i*timedelta(seconds=3600) for i in range(24) ] }
+      tt.update(rates)
+
+      locals = {
+        'is_control'    : True,
+        'creation_dt'   : self.creation_dt,
+        'creation_rate' : [ int(v) for v in tt.values() ],
+        'pawns' : {
+          'locals' : {
+            'beta_bp_miss'   : 0.5,
+            'start_node_lid' : -1,
+            'dest'           : -1
+          }
+        }
+      }
+      sources['LOCALS'] = locals
+
     conf['sources'] = sources
+
+
+
     return conf
 
 if __name__ == '__main__':
