@@ -1,0 +1,13 @@
+#! /usr/bin/env bash
+
+# docker build --tag fastapi . -f fastapi.docker
+# docker run --rm -d --name fastapi-run -p 10080:80 fastapi # debug run that remove container once killed
+# docker exec -it fastapi-run /bin/bash
+# docker container stop fastapi-run
+
+docker run \
+  -d \
+  --name slides-ws \
+  -p 10081:80 \
+  --mount type=bind,source=$(pwd)/sync,target=/output \
+  slides

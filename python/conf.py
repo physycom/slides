@@ -67,6 +67,7 @@ class conf:
       raise Exception('conf init failed : {}'.format(e)) from e
 
   def generate(self, start_date, stop_date, citytag):
+    print(citytag)
     if citytag not in self.cparams:
       raise Exception('[db_kml] generate citytag {} not found'.format(citytag))
 

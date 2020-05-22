@@ -69,7 +69,7 @@ bld/
 *.pnt
 *.plt
 *.log
-vars/conf.json
+vars/conf/conf.json
 vars/templates/*_template.json
 
 # Python
