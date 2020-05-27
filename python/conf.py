@@ -35,11 +35,9 @@ class conf:
     self.UTC = tz.gettz('UTC')
 
     try:
-      sys.path.append(os.path.join(os.environ['WORKSPACE'], 'minimocas', 'python'))
-      from model0 import model0
-
       sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
       from db_kml import db_kml
+      from model_slides import model_slides
     except Exception as e:
       raise Exception('[conf] library load failed : {}'.format(e))
 
@@ -51,7 +49,7 @@ class conf:
       self.wdir = config['work_dir']
       if not os.path.exists(self.wdir): os.mkdir(self.wdir)
 
-      self.m0 = model0(config['model0'])
+      self.ms = model_slides(config['model_data'])
 
       self.dbk = db_kml(config['kml_data'], self.logger)
 
@@ -79,18 +77,22 @@ class conf:
     ttrates = { t : 0 for t in [ mid_start + i*timedelta(seconds=self.rates_dt) for i in range(rates_per_day) ] }
 
     # attractions
-    attr = self.dbk.generate(citytag)
+    attr = self.dbk.get_attractions(citytag)
     if len(attr) > 6:
       log_print('*********** Temporary lowering of attractions number', self.logger)
       attr = { k : v for k, v in list(attr.items())[:6] }
     conf['attractions'] = attr
 
+    src_list = self.dbk.get_sources(citytag)
+    for tag, src in src_list.items():
+      print(tag, src)
+      data = self.ms.get_data(start, stop, citytag, tag)
+
     sources = {}
-    # sources
-    # < insert code >
+    # normal
 
     # control
-    df = self.m0.rescaled_data(start, stop, max = 1000)
+    df = self.ms.rescaled_data(start, stop, max = 1000)
     #print(df)
     rates = { t.replace(
         year=mid_start.year,

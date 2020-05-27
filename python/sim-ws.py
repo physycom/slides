@@ -11,7 +11,8 @@ import sys
 import os
 import json
 from jsonschema import validate, exceptions
-from datetime import datetime
+from datetime
+import datetime
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException
 import logging
@@ -37,9 +38,7 @@ try:
 except Exception as e:
   raise Exception('schema file loading error : {}'.format(e)) from e
 
-#################
-#### fastAPI ####
-#################
+# init
 app = FastAPI()
 logger = logging.getLogger("gunicorn.error")
 
@@ -47,12 +46,14 @@ logger = logging.getLogger("gunicorn.error")
 #### log function ########
 ##########################
 def logs(s):
-  head = '{} [sim-ws] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
-  return head + s
+  return '{} [sim-ws] {}'.format(datetime.now().strftime('%y%m%d %H:%M:%S'), s)
 
 def log_print(s):
   logger.info(logs(s))
 
+#################
+#### fastAPI ####
+#################
 @app.get('/')
 async def root():
   return {'message': 'slides simulation ws'}

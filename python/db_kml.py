@@ -61,28 +61,27 @@ class db_kml:
       folder = xmlparser.parse(f).getroot().Document.Folder
 
     ### parse bari kml
+    locations = {}
     if citytag == 'bari':
-      locations = {}
       for pm in folder.Placemark:
-
-        if re.match('.*limite.*', pm.name.text) != None: continue
-
+        role = 'none'
+        if re.match('.*limite.*', pm.name.text) != None: role = 'bbox'
         point = [p for p in pm.getchildren() if p.tag.endswith('Point')]
         if point:
           lon, lat, z = point[0].coordinates.text.split(',')
           locations[pm.name.text] = {
             'type' : 'Point',
+            'role' : role,
             'lat' : float(lat),
             'lon' : float(lon)
           }
     elif citytag == 'dubrovnik':
-      locations = {}
       for pm in folder.Placemark:
         name = pm.name.text.strip()
         description = pm.description.text.strip()
-
-        if re.match('.*[cC]amera [0-9].*', name) != None: continue
-        if re.match('.*[dD]egree A.*', description) == None: continue
+        role = 'none'
+        if re.match('.*[cC]amera [0-9].*', name) != None: role = 'source'
+        if re.match('.*[dD]egree A.*', description) == None: role = 'attraction'
 
         point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
         if point:
@@ -90,48 +89,46 @@ class db_kml:
           lon, lat, z = point[0].coordinates.text.split(',')
           locations[name] = {
             'type' : 'Point',
+            'role' : role,
             'lat' : float(lat),
             'lon' : float(lon)
           }
     elif citytag == 'ferrara':
-      locations = {}
       for pm in folder.Placemark:
         name = pm.name.text.strip()
         point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
         description = [ p for p in pm.getchildren() if p.tag.endswith('description') ]
+
         if point and description:
-          description = pm.description.text.strip()
-          if re.match('.*ingresso.*uscita.*', description) != None: continue
-          if re.match('.*destinazione.*', description) == None: continue
-          #print(name, '---', description)
           lon, lat, z = point[0].coordinates.text.split(',')
+          description = pm.description.text.strip()
+          role = 'none'
+          if re.match('.*ingresso.*uscita.*', description) != None: role = 'source'
+          if re.match('.*destinazione.*', description) != None: role = 'attraction'
+          #print(name, '---', description)
           locations[name] = {
             'type' : 'Point',
+            'role' : role,
             'lat' : float(lat),
             'lon' : float(lon)
           }
     elif citytag == 'sybenik':
-      # parse kml locations
-      locations = {}
       for pm in folder.Placemark:
         name = pm.name.text.strip()
         point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
-        #description = [ p for p in pm.getchildren() if p.tag.endswith('description') ]
         if point:# and description:
-          #description = pm.description.text.strip()
-          #if re.match('.*ingresso.*uscita.*', description) != None: continue
-          if re.match('.*Camera.*', name) != None: continue
-          if re.match('.*Camera.*', name) != None: continue
-          if re.match('.* - A.*', name) == None: continue
+          role = 'none'
+          if re.match('.*Camera.*', name) != None: role = 'source'
+          if re.match('.* - A.*', name) != None: role = 'attraction'
 
-          if re.match('.*Port.*', name) != None: continue
-          if re.match('.*City [eE]ntrance.*', name) != None: continue
-          if re.match('.*Parking.*', name) != None: continue
+          if re.match('.*Port.*', name) != None: role = 'source'
+          if re.match('.*City [eE]ntrance.*', name) != None: role = 'source'
+          if re.match('.*Parking.*', name) != None: role = 'source'
 
-          #print(name)
           lon, lat, z = point[0].coordinates.text.split(',')
           locations[name.replace('- A', '').strip()] = {
             'type' : 'Point',
+            'role' : role,
             'lat' : float(lat),
             'lon' : float(lon)
           }
@@ -169,37 +166,49 @@ class db_kml:
       #####################################################
 
     elif citytag == 'venezia':
-      locations = {}
       for pm in folder.Placemark:
         name = pm.name.text.strip()
         point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
 
         if point:
           description = pm.ExtendedData.Data[2].value.text
-          if re.match('.*poi A.*', description) == None: continue
-          #if re.match('.*destinazione.*', description) == None: continue
-          print(name, '---', description)
+          role = 'none'
+          if re.match('.*poi A.*', description) != None: role = 'attraction'
+          if re.match('.*destinazione.*', description) != None: role = 'source'
+
+          #print(name, '---', description)
           lon, lat, z = point[0].coordinates.text.split(',')
-          locations[name] = {
+          attractions[name] = {
             'type' : 'Point',
+            'role' : role,
             'lat' : float(lat),
             'lon' : float(lon)
           }
 
     log_print('Parsed {} locations for {}'.format(len(locations), citytag), self.logger)
 
-    attr = {}
-    for kl, kv in locations.items():
-      attr[kl] = {
-        'lat' : kv['lat'],
-        'lon' : kv['lon'],
-        'weight' : 0.5,
-        'timecap' : [ 1000 ],
-        'visit_time' : 300
+    attr = {
+      k : {
+          'lat' : v['lat'],
+          'lon' : v['lon'],
+          'weight' : 0.5,
+          'timecap' : [ 1000 ],
+          'visit_time' : 300
       }
+      for k,v in locations.items() if v['role'] == 'attraction'
+    }
+    src = {
+      k : {
+        'lat' : v['lat'],
+        'lon' : v['lon']
+      }
+      for k,v in locations.items() if v['role'] == 'source'
+    }
+    log_print('Created {} attractions {} sources'.format(len(attr), len(src)), self.logger)
 
     self.cities[citytag]['attractions'] = attr
-    self.cities[citytag]['ok'] = True
+    self.cities[citytag]['sources'] = src
+    self.cities[citytag]['valid'] = True
 
   def get_data(self, citytag):
     city = self.cities[citytag]
@@ -228,10 +237,15 @@ class db_kml:
     self.parse_kml(kmlfile, citytag)
     #os.remove(kmlfile)
 
-  def generate(self, citytag):
+  def get_attractions(self, citytag):
     if not self.cities[citytag]['valid']:
       self.get_data(citytag)
     return self.cities[citytag]['attractions']
+
+  def get_sources(self, citytag):
+    if not self.cities[citytag]['valid']:
+      self.get_data(citytag)
+    return self.cities[citytag]['sources']
 
 if __name__ == '__main__':
   import argparse
@@ -246,10 +260,11 @@ if __name__ == '__main__':
 
   dbk = db_kml(config)
 
-  attr = dbk.generate(city)
+  attr = dbk.get_attractions(city)
+  with open('attr_{}.json'.format(city), 'w') as simout: json.dump(attr, simout, indent=2)
 
-  with open('attr_{}.json'.format(city), 'w') as simout:
-    json.dump(attr, simout, indent=2)
+  src = dbk.get_sources(city)
+  with open('src_{}.json'.format(city), 'w') as simout: json.dump(src, simout, indent=2)
 #  try:
 #  except Exception as e:
 #    print('main EXC : {}'.format(e))
