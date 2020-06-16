@@ -6,100 +6,42 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil import tz
+import calendar
 
 ##########################
 #### log function ########
 ##########################
-def logs(s):
-  head = '{} [db_kml] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
-  return head + s
+def log_print(*args, **kwargs):
+  print('{} [model0] '.format(datetime.now()), end='', flush=True)
+  print(*args, **kwargs, flush=True)
 
-def log_print(s, logger = None):
-  if logger:
-    logger.info(logs(s))
-  else:
-    print(logs(s), flush=True)
+##########################
+#### model0 class  #####
+##########################
+class model0:
 
-#############################
-### model_slides class  #####
-#############################
-class model_slides:
-
-  def __init__(self, config, logger = None):
-    self.logger = logger
+  def __init__(self, config):
     self.got_data = False
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
     self.rates_dt = 5 * 60
+    self.m0_data_file = None
 
-    self.wdir = config['work_dir']
-    if not os.path.exists(self.wdir): os.mkdir(self.wdir)
+    self.data_dir = config['data_dir']
+    if not os.path.exists(self.data_dir): os.mkdir(self.data_dir)
 
-    self.models = {}
-    if 'model1_file_dir' in config:
-      model1_file_dir = config['model1_file_dir']
-      print(model1_file_dir)
-      for dir in model1_file_dir:
-        for root, subdirs, files in os.walk(dir):
-          for f in files:
-            try:
-              city, tag, mod = f.split('.')[0].split('-')
-              if mod != 'model1':
-                log_print('Model type {} not supported, skipping'.format(mod))
-                continue
-              print(city, tag, mod)
-              fname = os.path.join(root, *subdirs, f)
-              print(fname)
-              self.import_model1(city, tag, fname)
-            except Exception as e:
-              log_print('Problem parsing model1 file {} : {}'.format(f, e))
-              continue
-
-    params = {}
-    for k, v in config['params'].items():
-      params[k] = {
-        'population' : v['population'] if 'population' in v else 1000
-      }
-    self.params = params
-
-  def get_data(self, start, stop, city, tag):
-    if not (city, tag) in self.models:
-      self.create_model0(city, tag)
-
-    mod = self.models[(city, tag)]
-    data = self.full_table(start, stop, city, tag, mod)
-    print(data)
-
-  def full_table(self, start, stop, city, tag, model):
-    if 'm1' in model:
-      m01 = 'm1'
+  def get_data(self, start, stop):
+    if self.m0_data_file == None:
+      m0_data_file = self.data_dir + '/model0_data.csv'
     else:
-      m01 = 'm0'
-    log_print('Generating data for ({}, {}) from {}'.format(city, tag, model[m01]))
-    mfile = self.models[(city,tag)][m01]
-    data = pd.read_csv(mfile, sep=';')
-    return data
+      m0_data_file = self.m0_data_file
 
-  def import_model1(self, city, tag, file):
-    log_print('importing model1 {}-{}'.format(city, tag), self.logger)
-    m1filename = self.wdir + '/{city}-{tag}-model1.csv'.format(city=city, tag=tag)
+    try: os.remove(m0_data_file)
+    except: pass
 
-    df = pd.read_csv(file, sep=';')
-    df.to_csv(m1filename, sep=';', header=True, index=False)
-
-    self.models[(city, tag)] = {
-      'm1' : m1filename
-    }
-
-
-  def create_model0(self, city, tag):
-    log_print('creating model0 {}-{}'.format(city, tag), self.logger)
-    m0filename = self.wdir + '/{city}-{tag}-model0.csv'.format(city=city, tag=tag)
-
-    if os.path.exists(m0filename):
+    if not os.path.exists(m0_data_file):
       generic_monday = '2020-05-04 12:00:00' # just because it's monday
       weekdays = [ t.strftime('%a') for t in [ datetime.strptime(generic_monday, self.date_format) + timedelta(days=i) for i in range(7) ] ]
-
       midn = datetime.strptime('00:00:00', self.time_format)
       rates_per_day = 24 * 60 * 60 // self.rates_dt
       ttrates = { t : -1 for t in [ (midn + i*timedelta(seconds=self.rates_dt)).time() for i in range(rates_per_day) ] }
@@ -129,13 +71,11 @@ class model_slides:
         elif t < t7:
           tt[t] = 200
       self.tt_raw = tt
-
       runave_size = 5 * 60 * 60 // self.rates_dt # running average idx interval from time in seconds
       kern = np.concatenate([ np.ones((runave_size,))/runave_size, np.zeros((len(tt) - runave_size, )) ])
       conv = np.real(np.fft.ifft( np.fft.fft(list(tt.values())) * np.fft.fft(kern) ))
       tt = { t : v for t, v in zip( tt.keys(), conv ) }
       #############################################################
-
       df = pd.DataFrame([], index=tt.keys())
       for i, day in enumerate(weekdays):
         scale = ( len(weekdays) - i ) / len(weekdays)
@@ -143,13 +83,9 @@ class model_slides:
       df = df.astype('int')
       df.index = pd.to_datetime(df.index, format=self.time_format)
       df.index.name = 'time'
-      df.to_csv(m0filename, sep=';', header=True, index=True)
+      #df.to_csv(self.data_dir + '/prova.csv', sep=';', header=True, index=True)
+      df.to_csv(m0_data_file, sep=';', header=True, index=True)
 
-    self.models[(city, tag)] = {
-      'm0' : m0filename
-    }
-
-  def bla():
     #df_data = pd.DataFrame(result, columns=['datetime','counter','barrier'])
     df_data = pd.read_csv(m0_data_file, sep=';')
     df_data.time = pd.to_datetime(df_data.time, format=self.date_format)
@@ -193,6 +129,120 @@ class model_slides:
     df.columns = ['data']
     return df
 
+##########################
+#### model1 class  #####
+##########################
+class model1:
+
+  def __init__(self, config):
+    self.got_data = False
+    self.date_format = '%Y-%m-%d %H:%M:%S'
+    self.time_format = '%H:%M:%S'
+    self.rates_dt = 5 * 60
+    self.m1_data_file = None
+
+    self.data_dir  = config['data_dir']
+    self.input_dir = config['input_dir']
+    self.input_rescale_ita = config['input_rescale_ita']
+    self.input_rescale_str = config['input_rescale_str']
+
+    if not os.path.exists(self.data_dir): os.mkdir(self.data_dir)
+
+  def get_data(self, start, stop):
+    if self.m1_data_file == None:
+      m1_data_file = self.data_dir + '/model1_data.csv'
+    else:
+      m1_data_file = self.m1_data_file
+
+    try: os.remove(m1_data_file)
+    except: pass
+
+    if not os.path.exists(m1_data_file):
+      df_collection=pd.DataFrame()
+      for file_name in os.listdir(self.input_dir):
+        with open(os.path.join(self.input_dir, file_name)) as input_file:
+          #print(file_name)
+          df = pd.read_csv(input_file, sep=';')
+          df['weekday'] = [datetime.strptime(i, "%Y-%m-%d").weekday() for i in df.Timestamp]
+          df_day = df.groupby(['weekday','start_hour'])
+          df_mean = df_day.Veicoli.mean()
+          df_mean = df_mean.to_frame()
+          df_mean.reset_index(level=['start_hour', 'weekday'], inplace=True)
+          if df_collection.empty:
+            df_collection = df_mean
+          else:
+            df_collection['Veicoli'] = df_mean['Veicoli']+df_collection['Veicoli']
+
+      df_grouped = df_collection.groupby('weekday')
+      df_data = pd.DataFrame()
+      weekdays_name = list(calendar.day_abbr)
+
+      for name, group in df_grouped:
+        if df_data.empty:
+          df_data = group.copy()
+          df_data.index = pd.to_datetime(df_data.start_hour, format = self.time_format)
+          df_data.index.name = 'time'
+          df_data.rename(columns={'Veicoli':weekdays_name[name]}, inplace=True)
+          df_data = df_data.drop(['start_hour', 'weekday'], axis=1)
+        else:
+          df_w = group.copy()
+          df_w.index = pd.to_datetime(df_w.start_hour, format = self.time_format)
+          df_w.index.name = 'time'
+          df_w.rename(columns={'Veicoli':weekdays_name[name]}, inplace=True)
+          df_w = df_w.drop(['start_hour', 'weekday'], axis=1)
+          df_data = pd.concat([df_data, df_w], axis=1)
+      df_data = df_data.astype('int')
+      df_data.to_csv(m1_data_file, sep=';', header=True, index=True)
+
+    df_data = pd.read_csv(m1_data_file, sep=';')
+    df_data.time = pd.to_datetime(df_data.time, format=self.date_format)
+    df_data.time = [ t.replace(
+        year=start.year,
+        month=start.month,
+        day=start.day
+      )
+      for t in df_data.time
+    ]
+    self.df_data_day = df_data.set_index('time')
+
+    self.got_data = True
+    self.df_data = df_data
+    return df_data
+
+  def rescaled_data(self, start, stop):
+    # get raw data if needed
+    if not self.got_data:
+      self.get_data(start, stop)
+
+    wday = start.strftime('%a') # fix for near midn simulation
+    df = self.df_data[[wday]].copy()
+    df.set_index(self.df_data.time, inplace=True)
+
+    df_ita = pd.read_csv(self.input_rescale_ita, sep=';')
+    df_str = pd.read_csv(self.input_rescale_str, sep=';')
+
+    if start.year > 2018:
+      year = '2018'
+    else:
+      year = start.year
+
+    total_ita = df_ita[df_ita.Month == calendar.month_name[start.month]][year].get_values()[0]
+    total_str = df_str[df_str.Month == calendar.month_name[start.month]][year].get_values()[0]
+    days = calendar.monthrange(int(year), int(start.month))[1]
+    total_day_ita = int(total_ita/days)
+    total_day_str = int(total_str/days)
+
+    tot = total_day_ita + total_day_str
+    dftot = df[wday].sum()
+    df[wday] = (df[wday] / dftot * tot).astype('float')
+
+    df.columns = ['data']
+    df = df.astype('int')
+
+    mask = (df.index >= start) & (df.index < stop)
+    df = df[mask]
+    return df
+
 if __name__ == '__main__':
   import argparse
   import matplotlib.pyplot as plt
@@ -209,7 +259,7 @@ if __name__ == '__main__':
   stop = datetime.strptime(config['date_stop'], date_format)
 
   try:
-    m0 = model_slides(config)
+    m0 = model0(config)
 
     # save data
     data = m0.get_data(start, stop)

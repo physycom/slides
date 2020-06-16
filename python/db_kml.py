@@ -188,7 +188,7 @@ class db_kml:
     log_print('Parsed {} locations for {}'.format(len(locations), citytag), self.logger)
 
     attr = {
-      k : {
+      k.replace(' ', '_') : {
           'lat' : v['lat'],
           'lon' : v['lon'],
           'weight' : 0.5,
@@ -198,7 +198,7 @@ class db_kml:
       for k,v in locations.items() if v['role'] == 'attraction'
     }
     src = {
-      k : {
+      k.replace(' ', '_') : {
         'lat' : v['lat'],
         'lon' : v['lon']
       }

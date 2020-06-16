@@ -85,7 +85,7 @@ class conf:
 
     src_list = self.dbk.get_sources(citytag)
     for tag, src in src_list.items():
-      print(tag, src)
+      #print(tag, src)
       data = self.ms.get_data(start, stop, citytag, tag)
 
     sources = {}
@@ -106,7 +106,7 @@ class conf:
 
     locals = {
       'is_control'    : True,
-      'creation_dt'   : self.creation_dt,
+      'creation_dt'   : self.creation_dt ,
       'creation_rate' : [ int(v) for v in tt.values() ],
       'pawns' : {
         'locals' : {
@@ -119,6 +119,7 @@ class conf:
     sources['LOCALS'] = locals
 
     conf['sources'] = sources
+
     return conf
 
 if __name__ == '__main__':
