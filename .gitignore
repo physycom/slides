@@ -74,3 +74,6 @@ vars/templates/*_template.json
 
 # Python
 */__pycache__/
+
+# Debug
+work_*/
