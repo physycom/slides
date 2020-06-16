@@ -1,3 +1,7 @@
 [submodule "cmake"]
 	path = cmake
 	url = git@github.com:allefabbri/cmake-modules.git
+[submodule "minimocas"]
+	path = minimocas
+	url = git@github.com:physycom/minimocas
+	branch = master
