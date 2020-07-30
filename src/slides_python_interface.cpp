@@ -55,6 +55,21 @@ struct pysimulation
   {
     return (s != nullptr) ? s->poly_outfile : std::string("null");
   }
+
+  std::string sim_info()
+  {
+    std::string ret;
+    if (s != nullptr && c != nullptr)
+    {
+      ret = "\n" + c->info() + s->info();
+    }
+    else
+    {
+      ret = "sim init failed";
+    }
+    return ret;
+  }
+
 };
 
 PYBIND11_MODULE(pysim, m)
@@ -64,5 +79,6 @@ PYBIND11_MODULE(pysim, m)
     .def("run", &pysimulation::run)
     .def("poly_outfile", &pysimulation::poly_outfile)
     .def("dump_poly_geojson", &pysimulation::dump_poly_geojson)
-    .def("is_valid", &pysimulation::is_valid);
+    .def("is_valid", &pysimulation::is_valid)
+    .def("sim_info", &pysimulation::sim_info);
 }

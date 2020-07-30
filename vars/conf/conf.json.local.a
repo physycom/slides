@@ -19,6 +19,39 @@
     }
   },
 
+  "model_data": {
+    "work_dir": "/home/ale/Codice/slides/work_conf/m_data",
+
+    "model1_file_dir" : [
+      "/home/ale/Codice/slides/work_conf/data_real",
+      "/home/ale/Codice/slides/work_conf/storico/bari"
+    ],
+
+    "params" : {
+      "bari" : {
+        "population"    : 500,
+        "daily_tourist" : 20000
+      },
+      "dubrovnik" : {
+        "population"    : 2000,
+        "daily_tourist" : 20000
+      },
+      "ferrara" : {
+        "population"    : 3000,
+        "daily_tourist" : 20000
+      },
+      "sybenik" : {
+        "population"    : 4000,
+        "daily_tourist" : 20000
+      },
+      "venezia" : {
+        "population"    : 5000,
+        "daily_tourist" : 20000
+      }
+    }
+  },
+
+
   "cities" : {
     "bari" : {
 

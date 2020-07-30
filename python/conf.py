@@ -57,7 +57,7 @@ class conf:
       raise Exception('conf init failed : {}'.format(e)) from e
 
   def generate(self, start_date, stop_date, citytag):
-    print(citytag)
+    #print(citytag)
     if citytag not in self.cparams:
       raise Exception('[db_kml] generate citytag {} not found'.format(citytag))
 
@@ -73,9 +73,6 @@ class conf:
 
     conf['state_basename'] = self.wdir + '/{}'.format(citytag)
 
-    rates_per_day = 24 * 60 * 60 // self.rates_dt
-    ttrates = { t : 0 for t in [ mid_start + i*timedelta(seconds=self.rates_dt) for i in range(rates_per_day) ] }
-
     # attractions
     attr = self.dbk.get_attractions(citytag)
     if len(attr) > 6:
@@ -83,14 +80,55 @@ class conf:
       attr = { k : v for k, v in list(attr.items())[:6] }
     conf['attractions'] = attr
 
+    # blank timetable
+    rates_per_day = 24 * 60 * 60 // self.rates_dt
+    ttrates = { t : 0 for t in [ mid_start + i*timedelta(seconds=self.rates_dt) for i in range(rates_per_day) ] }
+    sources = {}
+
+    # tourist sources
     src_list = self.dbk.get_sources(citytag)
     for tag, src in src_list.items():
       #print(tag, src)
       data = self.ms.get_data(start, stop, citytag, tag)
+      #print('data ', data)
 
-    sources = {}
-    # normal
+      dtot = self.ms.params[citytag]['daily_t']
+      #print(dtot)
+      data = self.ms.rescale_data(start, stop, data, tot=dtot * src['weight'])
+      #print('rescaled ', data)
 
+      tt = ttrates.copy()
+      rates = { t.replace(
+          year=mid_start.year,
+          month=mid_start.month,
+          day=mid_start.day
+        ) : v # change here for debug
+        #) : 100
+        for t, v in zip(data.index, data['data'].values)
+      }
+      tt.update(rates)
+
+      beta_bp = 0.8
+      speed_mps = 0.7
+
+      sources.update({
+        tag + '_IN' : {
+          'creation_dt' : self.creation_dt,
+          'creation_rate' : [ v for v in tt.values() ],
+          'source_location' : {
+            'lat' : src['lat'],
+            'lon' : src['lon']
+          },
+          'pawns_from_weight': {
+            'tourist' : {
+              'beta_bp_miss' : beta_bp,
+              'speed_mps'    : speed_mps
+            }
+          }
+        }
+      })
+
+    """
     # control
     df = self.ms.rescaled_data(start, stop, max = 1000)
     #print(df)
@@ -117,6 +155,7 @@ class conf:
       }
     }
     sources['LOCALS'] = locals
+    """
 
     conf['sources'] = sources
 
@@ -142,7 +181,7 @@ if __name__ == '__main__':
       tag = 'ferrara'
 
     sim = cfg.generate(start_date, stop_date, tag)
-    sim['explore_node'] = [0]
+    #sim['explore_node'] = [0]
 
     with open('conf_{}.json'.format(tag), 'w') as simout:
       json.dump(sim, simout, indent=2)

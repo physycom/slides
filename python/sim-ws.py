@@ -11,11 +11,19 @@ import sys
 import os
 import json
 from jsonschema import validate, exceptions
-from datetime
-import datetime
+from datetime import datetime
 import pandas as pd
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Response
+from pydantic import BaseModel, Field
 import logging
+
+#################
+### libraries ###
+#################
+major=1
+minor=0
+tweak=0
+ver=f'{major}.{minor}.{tweak}'
 
 #################
 ### libraries ###
@@ -54,21 +62,38 @@ def log_print(s):
 #################
 #### fastAPI ####
 #################
-@app.get('/')
+
+class response_welcome(BaseModel):
+  message : str = 'slides simulation ws'
+  version : str = ver
+  #timestamp : str = str(datetime.now())
+
+@app.get('/', response_model=response_welcome)
 async def root():
-  return {'message': 'slides simulation ws'}
+  #return Response(content=response_welcome().dict())
+  return response_welcome()
+
+class response_sim(BaseModel):
+  message : str = 'slides simulation ws'
+  version : str = ver
+  #timestamp : str = str(datetime.now())
+
+class body_sim(BaseModel):
+  start_date : str
+  stop_date : str
+  sampling_dt : int
 
 @app.post('/sim')
-async def sim_walker_post(body: dict, request: Request, citytag: str = 'null'):
+async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
   client_ip = request.client.host
   log_print('Request from {} for city {}'.format(client_ip, citytag))
 
   # check body
   try:
-    validate(instance=body, schema=schema)
-    start_date = body['start_date']
-    stop_date = body['stop_date']
-    sampling_dt = body['sampling_dt']
+    #validate(instance=body, schema=schema)
+    start_date = body.start_date
+    stop_date = body.stop_date
+    sampling_dt = body.sampling_dt
     log_print('Parameters {} - {} sampling {} city {}'.format(start_date, stop_date, sampling_dt, citytag))
   except Exception as e:
     raise HTTPException(status_code=400, detail='invalid request payload : {}'.format(e))
@@ -110,6 +135,7 @@ async def sim_walker_post(body: dict, request: Request, citytag: str = 'null'):
   #print(confs, flush=True)
 
   s = simulation(confs)
+  log_print('sim info : {}'.format(s.sim_info()))
 
   if s.is_valid():
     tsim = datetime.now()
@@ -130,8 +156,12 @@ async def sim_walker_post(body: dict, request: Request, citytag: str = 'null'):
     raise HTTPException(status_code=501, detail='simulation init failed')
   return ret
 
+class response_poly(BaseModel):
+  message : str = 'geojson OK'
+  geojson : str = 'features as GEOJSON'
+
 @app.get('/poly')
-async def sim_walker_post(request: Request, citytag: str = 'null'):
+async def poly_get(request: Request, citytag: str = ''):
   client_ip = request.client.host
   log_print('Request from {}'.format(client_ip, citytag))
 

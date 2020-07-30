@@ -7,12 +7,13 @@ import os
 import zipfile
 import io
 import re
-#import numpy as np
 from datetime import datetime, timedelta
-#from dateutil import tz
 import pandas as pd
 from requests import get
 from pykml import parser as xmlparser
+
+import random as r
+r.seed(19)
 
 ##########################
 #### log function ########
@@ -81,7 +82,7 @@ class db_kml:
         description = pm.description.text.strip()
         role = 'none'
         if re.match('.*[cC]amera [0-9].*', name) != None: role = 'source'
-        if re.match('.*[dD]egree A.*', description) == None: role = 'attraction'
+        if re.match('.*[dD]egree A.*', description) != None: role = 'attraction'
 
         point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
         if point:
@@ -174,11 +175,11 @@ class db_kml:
           description = pm.ExtendedData.Data[2].value.text
           role = 'none'
           if re.match('.*poi A.*', description) != None: role = 'attraction'
-          if re.match('.*destinazione.*', description) != None: role = 'source'
+          if re.match('.*accesso.*', description) != None: role = 'source'
 
           #print(name, '---', description)
           lon, lat, z = point[0].coordinates.text.split(',')
-          attractions[name] = {
+          locations[name] = {
             'type' : 'Point',
             'role' : role,
             'lat' : float(lat),
@@ -199,11 +200,15 @@ class db_kml:
     }
     src = {
       k.replace(' ', '_') : {
-        'lat' : v['lat'],
-        'lon' : v['lon']
+        'lat'    : v['lat'],
+        'lon'    : v['lon'],
+        'weight' : r.uniform(1, 2)
       }
       for k,v in locations.items() if v['role'] == 'source'
     }
+    tot_w = sum([ v['weight'] for v in src.values() ])
+    for k in src:
+      src[k]['weight'] /= tot_w
     log_print('Created {} attractions {} sources'.format(len(attr), len(src)), self.logger)
 
     self.cities[citytag]['attractions'] = attr

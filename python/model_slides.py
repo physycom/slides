@@ -11,7 +11,7 @@ from dateutil import tz
 #### log function ########
 ##########################
 def logs(s):
-  head = '{} [db_kml] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
+  head = '{} [model_slides] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
   return head + s
 
 def log_print(s, logger = None):
@@ -58,7 +58,8 @@ class model_slides:
     params = {}
     for k, v in config['params'].items():
       params[k] = {
-        'population' : v['population'] if 'population' in v else 1000
+        'population' : v['population'] if 'population' in v else 1000,
+        'daily_t'    : v['daily_tourist'] if 'daily_tourist' in v else 100
       }
     self.params = params
 
@@ -68,7 +69,7 @@ class model_slides:
 
     mod = self.models[(city, tag)]
     data = self.full_table(start, stop, city, tag, mod)
-    print(data)
+    return data
 
   def full_table(self, start, stop, city, tag, model):
     if 'm1' in model:
@@ -91,14 +92,13 @@ class model_slides:
       'm1' : m1filename
     }
 
-
   def create_model0(self, city, tag):
     log_print('creating model0 {}-{}'.format(city, tag), self.logger)
     m0filename = self.wdir + '/{city}-{tag}-model0.csv'.format(city=city, tag=tag)
 
-    if os.path.exists(m0filename):
+    if not os.path.exists(m0filename):
       generic_monday = '2020-05-04 12:00:00' # just because it's monday
-      weekdays = [ t.strftime('%a') for t in [ datetime.strptime(generic_monday, self.date_format) + timedelta(days=i) for i in range(7) ] ]
+      weekdays = [ t.strftime('%a').lower() for t in [ datetime.strptime(generic_monday, self.date_format) + timedelta(days=i) for i in range(7) ] ]
 
       midn = datetime.strptime('00:00:00', self.time_format)
       rates_per_day = 24 * 60 * 60 // self.rates_dt
@@ -169,13 +169,19 @@ class model_slides:
     self.df_data = df_data
     return df_data
 
-  def rescaled_data(self, start, stop, tot = None, max = None, min = None):
-    # get raw data if needed
-    if not self.got_data:
-      self.get_data(start, stop)
+  def rescale_data(self, start, stop, df, tot = None, max = None, min = None):
+    df.time = pd.to_datetime(df.time, format=self.date_format)
+    df.time = [ t.replace(
+        year=start.year,
+        month=start.month,
+        day=start.day
+      )
+      for t in df.time
+    ]
+    df = df.set_index('time')
 
-    wday = start.strftime('%a') # fix for near midn simulation
-    df = self.df_data[[wday]].copy()
+    wday = start.strftime('%a').lower() # fix for near midn simulation
+    df = df[[wday]].copy()
 
     if tot != None:
       dftot = df[wday].sum()
@@ -191,7 +197,8 @@ class model_slides:
       df[wday] = (df[wday] / dfmax * max).astype('float')
 
     df.columns = ['data']
-    return df
+    mask = (df.index >= start) & (df.index < stop)
+    return df[mask]
 
 if __name__ == '__main__':
   import argparse
@@ -207,10 +214,12 @@ if __name__ == '__main__':
   date_format = '%Y-%m-%d %H:%M:%S'
   start = datetime.strptime(config['date_start'], date_format)
   stop = datetime.strptime(config['date_stop'], date_format)
+  city = config['city']
 
   try:
     m0 = model_slides(config)
 
+    """
     # save data
     data = m0.get_data(start, stop)
     data.plot()
@@ -233,6 +242,7 @@ if __name__ == '__main__':
       stop.strftime('%y%m%d-%H%M')
     ))
     plt.clf()
+    """
 
     # save rescaled tot
     data_tot = m0.rescaled_data(start, stop, tot = 1000)
