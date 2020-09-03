@@ -15,16 +15,24 @@ if __name__ == '__main__':
   parser.add_argument('-s', '--show', action='store_true')
   parser.add_argument('-b', '--bin', action='store_true')
   parser.add_argument('-t', '--dt', type=int, default=300)
+  parser.add_argument('-r', '--range', type=str, default='')
   args = parser.parse_args()
-  base = args.input[:args.input.rfind('.')]
-  tok = base.split('_')
+  base = args.input[:args.input.find('_')]
   dt_fmt = '%Y%m%d-%H%M%S'
-  start = datetime.strptime(tok[-2], dt_fmt)
-  stop = datetime.strptime(tok[-1], dt_fmt)
   freq = f'{args.dt}s'
+  if args.range == '':
+    tok = args.input[:args.input.rfind('.')].split('_')
+    start = datetime.strptime(tok[-2], dt_fmt)
+    stop = datetime.strptime(tok[-1], dt_fmt)
+  else:
+    start = datetime.strptime(args.range.split('|')[0], dt_fmt)
+    stop = datetime.strptime(args.range.split('|')[1], dt_fmt)
+  base = f'{base}_{start.strftime(dt_fmt)}_{stop.strftime(dt_fmt)}'
 
   # read raw data
   df = pd.read_csv(args.input, sep=';')
+  df.date_time = pd.to_datetime(df.date_time)
+  df = df[ (df.date_time >= start) & (df.date_time < stop) ]
   print(df)
 
   stats = pd.DataFrame()
@@ -67,10 +75,11 @@ if __name__ == '__main__':
   plt.gca().set_yticklabels(stats.columns)
 
   dx = 1 / len(stats.index)
+  max_ticks = 20
   plt.gca().set_xticks([ (n + 0.5)*dx for n in range(len(stats.index))])
   lbls = [ t.strftime('%Y %b %d %H:%M') for t in stats.index]
   for i in range(len(lbls)):
-    if i % 5 != 0:
+    if i % (len(lbls) // max_ticks) != 0:
       lbls[i] = ''
   plt.gca().set_xticklabels(lbls, rotation=45, ha='right')
 
