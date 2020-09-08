@@ -60,9 +60,9 @@ if __name__ == '__main__':
 
   if args.bin:
     cnt[ cnt > 0 ] = 1
-    color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], vmin=0, vmax=1)
+    color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], interpolation='none', vmin=0, vmax=1)
   else:
-    color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1])
+    color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], interpolation='none')
 
   #color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], vmin = 0)
   color_map.set_cmap('plasma')
@@ -78,9 +78,10 @@ if __name__ == '__main__':
   max_ticks = 20
   plt.gca().set_xticks([ (n + 0.5)*dx for n in range(len(stats.index))])
   lbls = [ t.strftime('%Y %b %d %H:%M') for t in stats.index]
-  for i in range(len(lbls)):
-    if i % (len(lbls) // max_ticks) != 0:
-      lbls[i] = ''
+  if len(lbls) > max_ticks:
+    for i in range(len(lbls)):
+      if i % (len(lbls) // max_ticks) != 0:
+        lbls[i] = ''
   plt.gca().set_xticklabels(lbls, rotation=45, ha='right')
 
   plt.tight_layout()

@@ -102,7 +102,8 @@ daily path {dpath_cnt} ({dpath_cnt/dmulti_cnt*100:.1f}%), daily rest {drest_cnt}
       'short_path' : short_path
     })
     #if len(pathv) > 2: print(f'{id} -> ({len(pathv)}) {pathv[0:1]}')
-  #print(json.dumps(idstats, indent=2))
+  with open(f'{base}_idstats.json', 'w') as idout:
+    json.dump(idstats, idout, indent=2)
 
   #exit(1)
 
@@ -129,6 +130,9 @@ daily path {dpath_cnt} ({dpath_cnt/dmulti_cnt*100:.1f}%), daily rest {drest_cnt}
       if len(p) > 1:
         for o,d in zip(p[:-1], p[1:]):
           cnt[o][d] += 1
+
+  with open(f'{base}_od_matrix.json', 'w') as odout:
+    json.dump(cnt, odout, indent=2)
 
   #print(cnt)
   cnt = np.asarray([ list(i.values()) for i in cnt.values() ])
