@@ -35,6 +35,16 @@ if __name__ == '__main__':
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
   print(df)
 
+  """
+  print(df[ df.station_name == 'Via del Podestà (3)'][['date_time', 'mac_address']].groupby('date_time').count().to_csv('3.csv'))
+  print(df[ df.station_name == 'Piazza Stazione isola (6)'][['date_time', 'mac_address']].groupby('date_time').count().to_csv('6.csv'))
+  print(df[ df.station_name == 'Via del Podestà (3)'][['date_time', 'kind', 'mac_address']].to_csv('3_raw.csv'))
+  print(df[
+    (df.station_name == 'Castello via martiri (1)') &
+    (df.kind == 'wifi')
+  ][['date_time', 'kind', 'mac_address']].to_csv('1_raw.csv'))
+  """
+
   stats = pd.DataFrame()
   t_index = pd.date_range(start=start, end=stop, freq=freq)
   for (sid, kind), dfg in df.groupby(['station_name', 'kind']):
@@ -72,7 +82,7 @@ if __name__ == '__main__':
 
   dy = 1 / len(stats.columns)
   plt.gca().set_yticks([ (n + 0.5)*dy for n in range(len(stats.columns))])
-  plt.gca().set_yticklabels(stats.columns)
+  plt.gca().set_yticklabels(stats.columns[::-1])
 
   dx = 1 / len(stats.index)
   max_ticks = 20
@@ -90,4 +100,3 @@ if __name__ == '__main__':
   else:
     ptype = 'bin' if args.bin else 'cmap'
     plt.savefig(f'{base}_{ptype}_validation.png')
-
