@@ -37,6 +37,16 @@ target_link_libraries(pysim PRIVATE
 )
 install(TARGETS pysim DESTINATION ${CMAKE_CURRENT_LIST_DIR}/bin)
 
+add_executable(slides_tools
+  ${CMAKE_CURRENT_LIST_DIR}/src/slides_tools.cpp
+)
+target_link_libraries(slides_tools
+  carto
+  simulation_deps
+  Threads::Threads
+  ${common_libs}
+)
+
 # CONFIG
 list(APPEND cities bari dubrovnik ferrara sybenik venezia)
 foreach(city ${cities})
