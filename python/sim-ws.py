@@ -47,8 +47,52 @@ except Exception as e:
   raise Exception('schema file loading error : {}'.format(e)) from e
 
 # init
-app = FastAPI()
+
+tags_metadata = [
+  {
+    "name" : "version",
+    "description": "Welcome GET API reporting version."
+  },
+  {
+      "name": "sim",
+      "description": "Simulation API.",
+  },
+  {
+      "name": "poly",
+      "description": "Geojson API.",
+      "externalDocs": {
+          "description": "Geojson specs",
+          "url": "https://geojson.org/",
+      },
+  },
+]
+
+app = FastAPI(
+  title="SLIDES pedestrian fluxes simulator",
+  description="A web api providing pedestrians mobility prediction algorithm",
+  version=ver,
+  openapi_tags=tags_metadata
+)
 logger = logging.getLogger("gunicorn.error")
+
+class response_welcome(BaseModel):
+  message : str = 'slides simulation ws',
+  version : str = ver
+
+class response_sim(BaseModel):
+  message : str = 'simulation OK',
+  city    : str = 'city name',
+  data    : dict = {}
+
+class body_sim(BaseModel):
+  start_date : str
+  stop_date : str
+  sampling_dt : int
+
+class response_poly(BaseModel):
+  message : str = 'geojson OK'
+  geojson : dict = {}
+
 
 ##########################
 #### log function ########
@@ -60,30 +104,21 @@ def log_print(s):
   logger.info(logs(s))
 
 #################
-#### fastAPI ####
+#### APIs ####
 #################
 
-class response_welcome(BaseModel):
-  message : str = 'slides simulation ws'
-  version : str = ver
-  #timestamp : str = str(datetime.now())
-
-@app.get('/', response_model=response_welcome)
+@app.get('/',
+  response_model=response_welcome,
+  tags=['version']
+)
 async def root():
-  #return Response(content=response_welcome().dict())
   return response_welcome()
 
-class response_sim(BaseModel):
-  message : str = 'slides simulation ws'
-  version : str = ver
-  #timestamp : str = str(datetime.now())
-
-class body_sim(BaseModel):
-  start_date : str
-  stop_date : str
-  sampling_dt : int
-
-@app.post('/sim')
+@app.post(
+  '/sim',
+  response_model=response_sim,
+  tags=['sim']
+)
 async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
   client_ip = request.client.host
   log_print('Request from {} for city {}'.format(client_ip, citytag))
@@ -134,7 +169,9 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
   with open(wdir + '/wsconf_sim_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
   #print(confs, flush=True)
 
+  log_print('prima')
   s = simulation(confs)
+  log_print('dopo')
   log_print('sim info : {}'.format(s.sim_info()))
 
   if s.is_valid():
@@ -156,11 +193,10 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
     raise HTTPException(status_code=501, detail='simulation init failed')
   return ret
 
-class response_poly(BaseModel):
-  message : str = 'geojson OK'
-  geojson : str = 'features as GEOJSON'
-
-@app.get('/poly')
+@app.get('/poly',
+  response_model=response_poly,
+  tags=['poly']
+)
 async def poly_get(request: Request, citytag: str = ''):
   client_ip = request.client.host
   log_print('Request from {}'.format(client_ip, citytag))
