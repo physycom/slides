@@ -76,12 +76,12 @@ app = FastAPI(
 logger = logging.getLogger("gunicorn.error")
 
 class response_welcome(BaseModel):
-  message : str = 'slides simulation ws',
+  message : str = 'slides simulation ws'
   version : str = ver
 
 class response_sim(BaseModel):
-  message : str = 'simulation OK',
-  city    : str = 'city name',
+  message : str = 'simulation OK'
+  city    : str = 'city name'
   data    : dict = {}
 
 class body_sim(BaseModel):
