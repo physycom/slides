@@ -25,10 +25,10 @@ ENV ERROR_LOG  /output/slides_errors.log
 WORKDIR /root/Code
 RUN git config --global user.name "vivesimulator" && git config --global user.email vivesimulator@gmail.com
 RUN git clone git@github.com:physycom/sysconfig.git && git clone git@github.com:pybind/pybind11.git
-RUN git clone git@github.com:physycom/minimocas.git && cd minimocas && git submodule update --init && cd ..
 
+ENV SLIDES_WS_VERSION "v1.0.0"
 WORKDIR /root/Code
-RUN git clone git@github.com:physycom/slides.git && cd slides && git submodule update --init && ./build.sh && cd ..
+RUN git clone git@github.com:physycom/slides.git && cd slides && git submodule update --init --recursive && ./build.sh && cd ..
 
-RUN cp /root/Code/slides/vars/conf.json.docker /root/Code/slides/vars/conf.json
+RUN cp /root/Code/slides/vars/conf/conf.json.docker /root/Code/slides/vars/conf/conf.json
 RUN cp /root/Code/slides/python/sim-ws.py /app/main.py

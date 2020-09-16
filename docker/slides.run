@@ -5,9 +5,21 @@
 # docker exec -it fastapi-run /bin/bash
 # docker container stop fastapi-run
 
+sync_dir="slides-ws"; mkdir -p $sync_dir
+external_port=10001
+container_port=80
+container_name="slides-ws"
+image_name="slides"
+
 docker run \
   -d \
-  --name slides-ws \
-  -p 10081:80 \
-  --mount type=bind,source=$(pwd)/sync,target=/output \
-  slides
+  -e ACCESS_LOG="/output/scr_access.log" \
+  -e ERROR_LOG="/output/scr_errors.log" \
+  -e WORKERS_PER_CORE="1" \
+  -e TIMEOUT=300 \
+  -e HOST="0.0.0.0" \
+  -e PORT="${container_port}" \
+  --name ${container_name} \
+  -p ${external_port}:${container_port} \
+  --mount type=bind,source=$(pwd)/${sync_dir},target=/output \
+  ${image_name}
