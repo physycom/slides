@@ -8,6 +8,8 @@ import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
 
+plt.style.use('seaborn-dark-palette')
+
 if __name__ == '__main__':
   # parse cli and config
   parser = argparse.ArgumentParser()
@@ -92,4 +94,4 @@ if __name__ == '__main__':
   if args.show:
     plt.show()
   else:
-    plt.savefig(f'{base}_{freq}_presence.png')
+    plt.savefig(f'{base}_presence_{freq}.png')

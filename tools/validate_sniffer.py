@@ -99,4 +99,4 @@ if __name__ == '__main__':
     plt.show()
   else:
     ptype = 'bin' if args.bin else 'cmap'
-    plt.savefig(f'{base}_{ptype}_validation.png')
+    plt.savefig(f'{base}_{ptype}_vali_{freq}.png')
