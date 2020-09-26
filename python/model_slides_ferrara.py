@@ -73,8 +73,9 @@ if __name__ == '__main__':
   #print(df[['wday', 'date', 'station_id']])
 
   """
-  Perform device id counting. With a hardcoded fine temporal scale
+  Perform device id counting with fine temporal scale
   """
+  tnow = datetime.now()
   stats = pd.DataFrame(index=pd.date_range("00:00", "23:59:59", freq=fine_freq).time)
   for (station, date), dfg in df.groupby(['station_id', 'date']):
     #print(station, date)
@@ -123,13 +124,16 @@ if __name__ == '__main__':
   else:
     stats = stats.fillna(0)
   stats = stats.set_index('index')
-  print('stats\n', stats)
+  tstats = datetime.now() - tnow
+  print(f'Counting done {args.interpolation} stats in {tstats}\n', stats)
+  stats.to_csv(f'{base}/counters_{fine_freq}_{args.interpolation}.csv', sep=';', index=True)
 
   """
   Groupby station_id and compute per day (or other criteria) mean signal.
   Resample by averaging fine values at output frequency.
   Perform moving average to remove fluctuations.
   """
+  tnow = datetime.now()
   ave = stats.copy()
   ave = ave.stack()
   ave.index = pd.MultiIndex.from_tuples([ (t, i[0], i[1]) for t, i in ave.index ], names=['time', 'station_id', 'date'])
@@ -184,8 +188,13 @@ if __name__ == '__main__':
     smooth.index.name='time'
     smooth.to_csv(f'{base}/{sid}_{fine_freq}_{args.interpolation}_smooth.csv', sep=';', index=True)
     smooths[sid] = smooth
+  tave = datetime.now() - tnow
+  print(f'Averaging done in {tave}')
 
-  # compute functional distances of days wrt smooth values
+  """
+  Evaluate functional distance wrt ave signals
+  """
+  tnow = datetime.now()
   ldata = []
   for c in stats.columns:
     #print(c)
@@ -210,7 +219,7 @@ if __name__ == '__main__':
   ])
   ldf.date = pd.to_datetime(ldf.date)
   ldf['l2_norm'] = ldf.l2_dist / ldf.l2_ave
-  print(ldf)
+  #print(ldf)
   #ldf.to_csv(f'{base}/{sid}_{fine_freq}_{args.interpolation}_smooth.csv', sep=';', index=True)
 
   # subplot grid auto-sizing
@@ -244,6 +253,8 @@ if __name__ == '__main__':
   outpng = f'{base}_l2norm.png'
   plt.savefig(outpng)
   if args.show: plt.show()
+  tl2 = datetime.now() - tnow
+  print(f'L2 analysis done in {tl2}')
 
   """
   Plot raw counters vs average signal.
@@ -282,6 +293,14 @@ if __name__ == '__main__':
     dft = dft.sort_values(by=['datetime'])
     replicas = len(dft) // len(smooths[s])
     #print('Replicas', replicas)
+
+    day_start = dft.datetime[0].date()
+    day_stop = dft['datetime'].iloc[-1]
+    print(f'{day_start} {day_stop}')
+    drange = pd.date_range(day_start, day_stop, freq='1d')
+    print(drange)
+    exit(1)
+
     ferave = np.tile(smooths[s]['feriali'].values, replicas)
     fesave = np.tile(smooths[s]['festivi'].values, replicas)
     #print(len(dft), len(ferave), len(fesave))
