@@ -1,11 +1,18 @@
 #! /usr/bin/env python3
 
 import os
+import sys
 import json
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil import tz
+
+try:
+  sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
+  from model_slides_ferrara import model_slides_ferrara
+except Exception as e:
+  raise Exception('[model_slides] library load failed : {}'.format(e))
 
 ##########################
 #### log function ########
@@ -31,6 +38,7 @@ class model_slides:
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
     self.rates_dt = 5 * 60
+    self.config = config
 
     self.wdir = config['work_dir']
     if not os.path.exists(self.wdir): os.mkdir(self.wdir)
@@ -72,13 +80,21 @@ class model_slides:
     return data
 
   def full_table(self, start, stop, city, tag, model):
-    if 'm1' in model:
-      m01 = 'm1'
+    if city == '_ferrara':
+      msfconf = self.config['params']['ferrara']['sniffer_db']
+      msfconf['work_dir'] = self.wdir + '/m_ferrara'
+      if not os.path.exists(msfconf['work_dir']): os.mkdir(msfconf['work_dir'])
+      msf = model_slides_ferrara(msfconf)
+      data = msf.full_table(start, stop, tag)
     else:
-      m01 = 'm0'
-    log_print('Generating data for ({}, {}) from {}'.format(city, tag, model[m01]))
-    mfile = self.models[(city,tag)][m01]
-    data = pd.read_csv(mfile, sep=';')
+      if 'm1' in model:
+        m01 = 'm1'
+      else:
+        m01 = 'm0'
+      log_print('Generating data for ({}, {}) from {}'.format(city, tag, model[m01]))
+      mfile = self.models[(city,tag)][m01]
+      data = pd.read_csv(mfile, sep=';')
+    print(data)
     return data
 
   def import_model1(self, city, tag, file):
