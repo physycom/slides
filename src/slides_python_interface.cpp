@@ -27,6 +27,12 @@ struct pysimulation
     }
   }
 
+  ~pysimulation()
+  {
+    delete c;
+    delete s;
+  }
+
   bool is_valid()
   {
     return valid;
