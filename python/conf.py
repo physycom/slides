@@ -49,7 +49,7 @@ class conf:
       self.wdir = config['work_dir']
       if not os.path.exists(self.wdir): os.mkdir(self.wdir)
 
-      self.ms = model_slides(config['model_data'])
+      self.ms = model_slides(config['model_data'], self.logger)
 
       self.dbk = db_kml(config['kml_data'], self.logger)
 
@@ -89,12 +89,14 @@ class conf:
     src_list = self.dbk.get_sources(citytag)
     for tag, src in src_list.items():
       #print(tag, src)
-      data = self.ms.get_data(start, stop, citytag, tag)
-      #print('data ', data)
+      data = self.ms.full_table(start, stop, citytag, tag)
+      #print('data\n', data)
 
-      dtot = self.ms.params[citytag]['daily_t']
-      #print(dtot)
-      data = self.ms.rescale_data(start, stop, data, tot=dtot * src['weight'])
+      if 'weight' in src: # if ferrara
+        # calcolo tot sniffer
+        # tot m0 (start, stop) - tot sniffer (start, stop)
+        # spalmo su src non sniffer
+        data = data * src['weight']
       #print('rescaled ', data)
 
       tt = ttrates.copy()
@@ -102,9 +104,8 @@ class conf:
           year=mid_start.year,
           month=mid_start.month,
           day=mid_start.day
-        ) : v # change here for debug
-        #) : 100
-        for t, v in zip(data.index, data['data'].values)
+        ) : v
+        for t, v in zip(data.index, data[tag].values)
       }
       tt.update(rates)
 

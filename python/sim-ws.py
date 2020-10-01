@@ -47,7 +47,6 @@ except Exception as e:
   raise Exception('schema file loading error : {}'.format(e)) from e
 
 # init
-
 tags_metadata = [
   {
     "name" : "version",
@@ -121,17 +120,12 @@ async def root():
 )
 async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
   client_ip = request.client.host
-  log_print('Request from {} for city {}'.format(client_ip, citytag))
+  log_print('Request from {} city {}'.format(client_ip, citytag))
 
-  # check body
-  try:
-    #validate(instance=body, schema=schema)
-    start_date = body.start_date
-    stop_date = body.stop_date
-    sampling_dt = body.sampling_dt
-    log_print('Parameters {} - {} sampling {} city {}'.format(start_date, stop_date, sampling_dt, citytag))
-  except Exception as e:
-    raise HTTPException(status_code=400, detail='invalid request payload : {}'.format(e))
+  start_date = body.start_date
+  stop_date = body.stop_date
+  sampling_dt = body.sampling_dt
+  log_print('Parameters {} - {} sampling {} city {}'.format(start_date, stop_date, sampling_dt, citytag))
 
   # init conf
   try:
@@ -142,15 +136,18 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
     log_print('conf init failed : {}'.format(e))
     raise HTTPException(status_code=500, detail='conf init failed : {}'.format(e))
 
+  # sanity check
   if citytag not in cw.cparams:
     raise HTTPException(status_code=400, detail='city \'{}\' not available. Current cities : {}'.format(citytag, list(cw.cparams.keys())))
 
+  # generate config json
   try:
     simconf = cw.generate(start_date, stop_date, citytag)
   except Exception as e:
     log_print('config generation failed : {}'.format(e))
     raise HTTPException(status_code=500, detail='conf generation failed : {}'.format(e))
 
+  # set up environment and move execution to working dir
   wdir = cw.wdir
   try:
     os.chdir(wdir)
@@ -158,22 +155,19 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
     os.mkdir(wdir)
     os.chdir(wdir)
 
+  # override sim parameters
   simconf['start_date'] = start_date
   simconf['stop_date'] = stop_date
   simconf['sampling_dt'] = sampling_dt
   simconf['state_basename'] = wdir + '/r_{}'.format(citytag)
   #simconf['explore_node'] = [0]
-
   confs = json.dumps(simconf)
-
   with open(wdir + '/wsconf_sim_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
   #print(confs, flush=True)
 
-  log_print('prima')
+  # run simulation
   s = simulation(confs)
-  log_print('dopo')
   log_print('sim info : {}'.format(s.sim_info()))
-
   if s.is_valid():
     tsim = datetime.now()
     s.run()

@@ -16,23 +16,40 @@
     }
   },
   "model_data": {
-    "work_dir": "/home/ale/Codice/slides/work_conf/m_data",
+    "work_dir": "/home/ale/Codice/slides/work_ws/m_data",
     "_model1_file_dir": [
       "/home/ale/Codice/slides/work_conf/data_real",
       "/home/ale/Codice/slides/work_conf/storico/bari"
     ],
     "params": {
       "bari": {
-        "population": 500,
-        "daily_tourist": 20000
+        "population"    : 500,
+        "daily_tourist" : 20000
       },
       "dubrovnik": {
-        "population": 2000,
-        "daily_tourist": 20000
+        "population"    : 2000,
+        "daily_tourist" : 20000
       },
       "ferrara": {
-        "population": 3000,
-        "daily_tourist": 20000
+        "population"    : 3000,
+        "daily_tourist" : 20000,
+
+        "host" : "94.198.98.184",
+        "port" : 27017,
+        "user" : "readerB",
+        "pwd"  : "L8mVr0gaMgxoy6tgAT0v",
+        "db"   : "symfony",
+        "aut"  : "SCRAM-SHA-256",
+
+        "station_mapping" : {
+          "1" : [
+            "Stazione"
+          ],
+          "4" : [
+            "parcheggio_1",
+            "parcheggio_2"
+          ]
+        }
       },
       "sybenik": {
         "population": 4000,

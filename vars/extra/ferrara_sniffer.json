@@ -1,0 +1,44 @@
+{
+  "1" : {
+    "cluster"      : "",
+    "latitude"     : 44.83781,
+    "longitude"    : 11.620383,
+    "station_id"   : "de5bc008-96a4-4bd8-b138-8a9722f80d97",
+    "station_name" : "Castello via martiri (1)"
+  },
+  "2" : {
+    "cluster"      : "",
+    "latitude"     : 44.83774,
+    "longitude"    : 11.615786,
+    "station_id"   : "40f46500-78d0-421d-8501-795a8d9ee424",
+    "station_name" : "Hotel Carlton (2)"
+  },
+  "3" : {
+    "cluster"      : "",
+    "latitude"     : 44.83548,
+    "longitude"    : 11.61814,
+    "station_id"   : "35d1337a-4d05-498a-98f7-95c850ffd2a9",
+    "station_name" : "Via del Podestà (3)"
+  },
+  "4" : {
+    "cluster"      : "",
+    "latitude"     : 44.833853,
+    "longitude"    : 11.617719,
+    "station_id"   : "c52a21fa-2d4b-46e1-b38e-acd09fc793a1",
+    "station_name" : "Corso di p. reno /via ragno (4)"
+  },
+  "5" : {
+    "cluster"      : "",
+    "latitude"     : 44.834975,
+    "longitude"    : 11.620551,
+    "station_id"   : "cb714972-b8a7-4640-82b0-7fe132cb9a8d",
+    "station_name" : "Piazza Trento Trieste (5)"
+  },
+  "6" : {
+    "cluster"      : "",
+    "latitude"     : 44.842682,
+    "longitude"    : 11.604453,
+    "station_id"   : "28a62420-b11a-4cef-ae5d-4b0683188756",
+    "station_name" : "Piazza Stazione isola (6)"
+  }
+}

@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import re
 import os
 import sys
 import json
@@ -7,10 +8,11 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil import tz
+from glob import glob
 
 try:
   sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
-  from model_slides_ferrara import model_slides_ferrara
+  from model_ferrara import model_ferrara
 except Exception as e:
   raise Exception('[model_slides] library load failed : {}'.format(e))
 
@@ -43,7 +45,11 @@ class model_slides:
     self.wdir = config['work_dir']
     if not os.path.exists(self.wdir): os.mkdir(self.wdir)
 
+    # init city-specific model
+    self.mod_fe = model_ferrara(config['params']['ferrara'], self.logger)
     self.models = {}
+
+    # collect model1 filenames
     if 'model1_file_dir' in config:
       model1_file_dir = config['model1_file_dir']
       print(model1_file_dir)
@@ -63,6 +69,16 @@ class model_slides:
               log_print('Problem parsing model1 file {} : {}'.format(f, e))
               continue
 
+    # collect model0 filenames
+    m0files = glob(f'{self.wdir}/*model0.csv')
+    for m0f in m0files:
+      tok = re.split('[/-]', m0f)
+      city = tok[-3]
+      tag = tok[-2]
+      self.models[(city, tag)] = {
+        'm0' : m0f
+      }
+
     params = {}
     for k, v in config['params'].items():
       params[k] = {
@@ -71,30 +87,37 @@ class model_slides:
       }
     self.params = params
 
-  def get_data(self, start, stop, city, tag):
+  def full_table(self, start, stop, city, tag):
+    #print((city, tag), self.models.keys())
+    #print(self.models)
+    log_print(f'Creating data for {city} {tag}', self.logger)
     if not (city, tag) in self.models:
       self.create_model0(city, tag)
 
-    mod = self.models[(city, tag)]
-    data = self.full_table(start, stop, city, tag, mod)
-    return data
-
-  def full_table(self, start, stop, city, tag, model):
-    if city == '_ferrara':
-      msfconf = self.config['params']['ferrara']['sniffer_db']
-      msfconf['work_dir'] = self.wdir + '/m_ferrara'
-      if not os.path.exists(msfconf['work_dir']): os.mkdir(msfconf['work_dir'])
-      msf = model_slides_ferrara(msfconf)
-      data = msf.full_table(start, stop, tag)
-    else:
-      if 'm1' in model:
-        m01 = 'm1'
-      else:
-        m01 = 'm0'
-      log_print('Generating data for ({}, {}) from {}'.format(city, tag, model[m01]))
+    model = self.models[(city, tag)]
+    if city == 'ferrara':
+      m01 = 'FE'
+      try:
+        data = self.mod_fe.full_table(start, stop, tag, resampling=self.rates_dt)
+      except Exception as e:
+        log_print(f'Model FE errors for {tag}, falling back to m0 : {e}', self.logger)
+        data = pd.DataFrame()
+    elif 'm1' in model:
+      m01 = 'm1'
       mfile = self.models[(city,tag)][m01]
       data = pd.read_csv(mfile, sep=';')
-    print(data)
+    else:
+      data = pd.DataFrame()
+
+    if not tag in data.columns:
+      m01 = 'm0'
+      mfile = self.models[(city,tag)][m01]
+      data = pd.read_csv(mfile, sep=';')
+      dtot = self.params[city]['daily_t']
+      data = self.rescale_data(start, stop, data, tot=dtot).rename(columns={'data':tag})
+      #print('rescaled\n', data)
+    log_print(f'Data created for ({city}, {tag}) mode {m01}', self.logger)
+
     return data
 
   def import_model1(self, city, tag, file):
@@ -113,7 +136,7 @@ class model_slides:
     m0filename = self.wdir + '/{city}-{tag}-model0.csv'.format(city=city, tag=tag)
 
     if not os.path.exists(m0filename):
-      generic_monday = '2020-05-04 12:00:00' # just because it's monday
+      generic_monday = '2020-05-04 12:00:00' # just because it's a monday
       weekdays = [ t.strftime('%a').lower() for t in [ datetime.strptime(generic_monday, self.date_format) + timedelta(days=i) for i in range(7) ] ]
 
       midn = datetime.strptime('00:00:00', self.time_format)
@@ -203,14 +226,14 @@ class model_slides:
       dftot = df[wday].sum()
       df[wday] = (df[wday] / dftot * tot).astype('float')
 
+    if max != None:
+      dfmax = df[wday].max()
+      df[wday] = (df[wday] / dfmax * max).astype('float')
+
     if max != None and min != None:
       dfmax = df[wday].max()
       dfmin = df[wday].min()
       df[wday] = (df[wday] / (dfmax - dfmin) * (max - min) + min).astype('float')
-
-    if max != None:
-      dfmax = df[wday].max()
-      df[wday] = (df[wday] / dfmax * max).astype('float')
 
     df.columns = ['data']
     mask = (df.index >= start) & (df.index < stop)
