@@ -27,7 +27,7 @@ if __name__ == '__main__':
       authSource=    config['db'],
       authMechanism= config['aut']
     )
-    print(f'Authenitcation ok')
+    print(f'Authentication ok')
 
     start_date = config['start_date']
     stop_date  = config['stop_date']

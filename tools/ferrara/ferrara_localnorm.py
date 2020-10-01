@@ -45,7 +45,6 @@ data_colors = {
   cg.HIGH : 'red'
 }
 
-
 if __name__ == '__main__':
   import argparse
   import matplotlib.pyplot as plt
