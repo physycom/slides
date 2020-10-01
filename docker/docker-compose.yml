@@ -1,0 +1,27 @@
+# build image with with
+# > docker-compose build
+# create and run container with
+# > docker-compose up -d fastcron_ws
+
+version: '3.4'
+
+services:
+  slides_ws:
+    container_name: slides_container
+    build:
+      context: '.'
+      dockerfile: slides.dockerfile
+    image: slides_image
+    environment:
+      - TZ=Europe/Rome
+      - ACCESS_LOG=/output/slides_access.log
+      - ERROR_LOG=/output/slides_errors.log
+      - WORKERS_PER_CORE=1
+#      - USE_MAX_WORKERS=2
+      - TIMEOUT=300
+      - HOST=0.0.0.0
+      - PORT=80
+    ports:
+      - 10000:80
+    volumes:
+      - ./sync:/output
