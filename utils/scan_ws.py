@@ -1,10 +1,17 @@
 #! /usr/bin/env python3
 
 import os
+import sys
 import json
 import argparse
 from datetime import datetime, timedelta
 from requests import post, get
+
+try:
+  sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'utils'))
+  from sim_plotter import sim_plot
+except Exception as e:
+  raise Exception('[scan_ws] library load failed : {}'.format(e))
 
 if __name__ == '__main__':
   # parse cli and config
@@ -31,6 +38,7 @@ if __name__ == '__main__':
   cities = config['cities']
 
   date_format = '%Y-%m-%d %H:%M:%S'
+  short_format = '%y%m%d_%H%M%S'
   start = datetime.strptime(start_date, date_format)
   stop = datetime.strptime(stop_date, date_format)
 
@@ -60,6 +68,16 @@ if __name__ == '__main__':
     json.dump(schedule, sout, indent=2)
   print(f'Scheduled {len(schedule)} requests')
 
+  try:
+    with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf', 'conf.json')) as wscin:
+      wsc = json.load(wscin)
+    wsdir = wsc['work_dir']
+    print(f'Found local ws data in {wsdir}, pngs enabled.')
+    do_png = True
+  except Exception as e:
+    print(f'Unable to locate ws working dir, skipping pngs, err : {e}')
+    do_png = False
+
   citymap = {} # to avoid repetitions in geojson case
   if args.scan:
     for url in url_list:
@@ -71,11 +89,22 @@ if __name__ == '__main__':
           cityurl = f'{url}/sim?citytag={city}'
           print(f'Requesting SIM for {city} with params {s}')
           res = post(cityurl, data=json.dumps(s), timeout=180)
-          outname = f'response_{sid:>04s}.json'
+          outname = f'{sid:>04s}_response.json'
+
+          # make plot (only localhost scan)
+          if do_png:
+            conf = f'{wsdir}/wsconf_sim_{city}.json'
+            outpng = f'{wdir}/{sid:>04s}_conf.png'
+            sim_plot(confin=conf, outpng=outpng)
+
+            sd = datetime.strptime(s['start_date'], date_format).strftime(short_format)
+            popf = f'{wsdir}/r_{city}_population_{sd}.csv'
+            outpng = f'{wdir}/{sid:>04s}_pop.png'
+            sim_plot(popin=popf, outpng=outpng)
+
         elif mode == 'geo':
           city = s['city']
-          if city in citymap:
-            continue
+          if city in citymap: continue # to avoid repetitions in geojson case
           citymap[city] = 'ok'
           cityurl = f'{url}/poly?citytag={city}'
           print(f'Requesting GEOJSON data for {city} @{cityurl}')
@@ -91,3 +120,4 @@ if __name__ == '__main__':
           tsim = datetime.now() - tsim
           with open(f'{wdir}/{outname}', 'w') as jout:
             json.dump(rjson, jout, indent=2)
+
