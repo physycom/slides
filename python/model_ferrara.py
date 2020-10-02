@@ -142,89 +142,89 @@ class model_ferrara():
       start_date = start.strftime(self.date_format)
       stop_date = stop.strftime(self.date_format)
 
-      """
       # mongo
-      client = pymongo.MongoClient(
-        host          = config['host'],
-        port          = config['port'],
-        username      = config['user'],
-        password      = config['pwd'],
-        authSource    = config['db'],
-        authMechanism = config['aut']
-      )
-      #print(f'Authentication ok')
+      if True:
+        client = pymongo.MongoClient(
+          host          = config['host'],
+          port          = config['port'],
+          username      = config['user'],
+          password      = config['pwd'],
+          authSource    = config['db'],
+          authMechanism = config['aut']
+        )
+        #print(f'Authentication ok')
 
-      tnow = datetime.now()
-      db_filter = {
-        'date_time' : {
-          '$gte' : start_date,
-          '$lt'  : stop_date
-        },
-        'kind' : 'wifi',
-        'station_name' : { '$in' : [ self.st_info[sid]['station_name'] for sid in station_list ] }
-      }
-      db_fields = {
-        'mac_address'  : 1,
-        'date_time'    : 1,
-        'station_name' : 1,
-        '_id'          : 0
-      }
-      #print(json.dumps(db_filter, indent=2))
-      cursor = client['symfony'].FerraraPma.find(db_filter, db_fields)
-      df = pd.DataFrame(list(cursor))
-      if len(df) == 0:
-        raise Exception(f'[mod_fe] Empty mongo query result')
+        tnow = datetime.now()
+        db_filter = {
+          'date_time' : {
+            '$gte' : start_date,
+            '$lt'  : stop_date
+          },
+          'kind' : 'wifi',
+          'station_name' : { '$in' : [ self.st_info[sid]['station_name'] for sid in station_list ] }
+        }
+        db_fields = {
+          'mac_address'  : 1,
+          'date_time'    : 1,
+          'station_name' : 1,
+          '_id'          : 0
+        }
+        #print(json.dumps(db_filter, indent=2))
+        cursor = client['symfony'].FerraraPma.find(db_filter, db_fields)
+        df = pd.DataFrame(list(cursor))
+        if len(df) == 0:
+          raise Exception(f'[mod_fe] Empty mongo query result')
 
-      df.index = pd.to_datetime(df.date_time)
-      tquery = datetime.now() - tnow
-      log_print(f'Received {len(df)} mongo data in {tquery}', self.logger)
-      #print(df)
-      """
+        df.index = pd.to_datetime(df.date_time)
+        tquery = datetime.now() - tnow
+        log_print(f'Received {len(df)} mongo data in {tquery}', self.logger)
+        #print(df)
 
       # mysql
-      config = self.config['mysql']
-      db = mysql.connector.connect(
-        host     = config['host'],
-        port     = config['port'],
-        user     = config['user'],
-        passwd   = config['pwd'],
-        database = config['db']
-      )
-      cursor = db.cursor()
+      if False:
+        config = self.config['mysql']
+        db = mysql.connector.connect(
+          host     = config['host'],
+          port     = config['port'],
+          user     = config['user'],
+          passwd   = config['pwd'],
+          database = config['db']
+        )
+        cursor = db.cursor()
 
-      station_filter = ' OR '.join([ f"s.station_name = '{self.st_info[sid]['station_name']}'" for sid in station_list ])
-      query = f"""
-        SELECT
-          ds.date_time as date_time,
-          ds.id_device as mac_address,
-          s.station_name as station_name
-        FROM
-          DevicesStations ds
-        JOIN
-          Stations s
-        ON
-          ds.id_station = s.id
-        WHERE
-          ({station_filter})
-        AND
-          (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
-      """
-      #print(query)
+        station_filter = ' OR '.join([ f"s.station_name = '{self.st_info[sid]['station_name']}'" for sid in station_list ])
+        query = f"""
+          SELECT
+            ds.date_time as date_time,
+            ds.id_device as mac_address,
+            s.station_name as station_name
+          FROM
+            DevicesStations ds
+          JOIN
+            Stations s
+          ON
+            ds.id_station = s.id
+          WHERE
+            ({station_filter})
+          AND
+            (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
+        """
+        #print(query)
 
-      tquery = datetime.now()
-      cursor.execute(query)
-      result = cursor.fetchall()
-      tquery = datetime.now() - tquery
-      log_print(f'Received {len(result)} mysql data in {tquery}', self.logger)
-      if len(result) == 0:
-        raise Exception(f'[mod_fe] Empty mysql query result')
+        tquery = datetime.now()
+        cursor.execute(query)
+        result = cursor.fetchall()
+        tquery = datetime.now() - tquery
+        log_print(f'Received {len(result)} mysql data in {tquery}', self.logger)
+        if len(result) == 0:
+          raise Exception(f'[mod_fe] Empty mysql query result')
 
-      df1 = pd.DataFrame(result)
-      df1.columns =  cursor.column_names
-      df1 = df1.set_index('date_time')
-      df1.index = pd.to_datetime(df1.index)
-      df = df1
-      #print(df1)
+        df1 = pd.DataFrame(result)
+        df1.columns =  cursor.column_names
+        df1 = df1.set_index('date_time')
+        df1.index = pd.to_datetime(df1.index)
+        #print(df1)
+        df = df1
 
       return df
     except Exception as e:

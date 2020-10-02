@@ -86,6 +86,7 @@ def sim_plot(popin=None, confin=None, outpng=''):
     plt.show()
   else:
     plt.savefig(outpng)
+  plt.close()
 
 if __name__ == '__main__':
   import argparse
