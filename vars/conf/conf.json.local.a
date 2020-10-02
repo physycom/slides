@@ -1,12 +1,7 @@
 {
-  "start_date": "2020-03-24 00:00:00",
-  "stop_date": "2020-03-24 01:00:00",
   "work_dir": "/home/ale/Codice/slides/work_ws/output",
-  "model0": {
-    "data_dir": "/home/ale/Codice/slides/work_ws/output/m0_data"
-  },
+
   "kml_data": {
-    "work_dir": "/home/ale/Codice/slides/work_ws/output/kml_data",
     "mymaps_id": {
       "bari": "1tMT72fYkC2FxAo5SUQFI-fxwn3sp42Z0",
       "dubrovnik": "1p55-Ymxo0RZ4FuYdswPIbUXWn31JjP71",
@@ -15,12 +10,14 @@
       "venezia": "1ZIdVY_EZtppfQ56tPbi90zyk21carT46"
     }
   },
+
   "model_data": {
-    "work_dir": "/home/ale/Codice/slides/work_ws/m_data",
+
     "_model1_file_dir": [
       "/home/ale/Codice/slides/work_conf/data_real",
       "/home/ale/Codice/slides/work_conf/storico/bari"
     ],
+
     "params": {
       "bari": {
         "population"    : 500,
@@ -61,6 +58,7 @@
       }
     }
   },
+
   "cities": {
     "bari": {},
     "dubrovnik": {},
@@ -68,5 +66,10 @@
     "sybenik": {},
     "venezia": {}
   },
+
+  "start_date": "2020-03-24 00:00:00",
+  "stop_date": "2020-03-24 01:00:00",
+  "city_tag" : "ferrara",
+
   "last": {}
 }

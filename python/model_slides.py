@@ -29,6 +29,18 @@ def log_print(s, logger = None):
   else:
     print(logs(s), flush=True)
 
+################
+### utils  #####
+################
+def box_centered_kernel(tot_len, box_len):
+  pad_len = tot_len - box_len
+  kern = np.concatenate([
+    np.zeros((pad_len // 2)),
+    np.ones((box_len)) / box_len,
+    np.zeros((pad_len - pad_len // 2))# for odd box_len
+  ])
+  return kern
+
 #############################
 ### model_slides class  #####
 #############################
@@ -52,7 +64,7 @@ class model_slides:
     # collect model1 filenames
     if 'model1_file_dir' in config:
       model1_file_dir = config['model1_file_dir']
-      print(model1_file_dir)
+      #print(model1_file_dir)
       for dir in model1_file_dir:
         for root, subdirs, files in os.walk(dir):
           for f in files:
@@ -61,9 +73,9 @@ class model_slides:
               if mod != 'model1':
                 log_print('Model type {} not supported, skipping'.format(mod))
                 continue
-              print(city, tag, mod)
+              #print(city, tag, mod)
               fname = os.path.join(root, *subdirs, f)
-              print(fname)
+              #print(fname)
               self.import_model1(city, tag, fname)
             except Exception as e:
               log_print('Problem parsing model1 file {} : {}'.format(f, e))
@@ -90,7 +102,7 @@ class model_slides:
   def full_table(self, start, stop, city, tag):
     #print((city, tag), self.models.keys())
     #print(self.models)
-    log_print(f'Creating data for {city} {tag}', self.logger)
+    #log_print(f'Creating data for {city} {tag}', self.logger)
     if not (city, tag) in self.models:
       self.create_model0(city, tag)
 
@@ -116,8 +128,8 @@ class model_slides:
       dtot = self.params[city]['daily_t']
       data = self.rescale_data(start, stop, data, tot=dtot).rename(columns={'data':tag})
       #print('rescaled\n', data)
-    log_print(f'Data created for ({city}, {tag}) mode {m01}', self.logger)
 
+    #log_print(f'Data created for ({city}, {tag}) mode {m01}', self.logger)
     return data
 
   def import_model1(self, city, tag, file):
@@ -135,7 +147,7 @@ class model_slides:
     log_print('creating model0 {}-{}'.format(city, tag), self.logger)
     m0filename = self.wdir + '/{city}-{tag}-model0.csv'.format(city=city, tag=tag)
 
-    if not os.path.exists(m0filename):
+    if not os.path.exists(m0filename) or True:
       generic_monday = '2020-05-04 12:00:00' # just because it's a monday
       weekdays = [ t.strftime('%a').lower() for t in [ datetime.strptime(generic_monday, self.date_format) + timedelta(days=i) for i in range(7) ] ]
 
@@ -145,40 +157,36 @@ class model_slides:
 
       ### fake data generation #############################
       tt = ttrates.copy()
-      t1 = datetime.strptime('01:00:00', self.time_format).time()
-      t2 = datetime.strptime('04:00:00', self.time_format).time()
-      t3 = datetime.strptime('09:00:00', self.time_format).time()
-      t4 = datetime.strptime('12:00:00', self.time_format).time()
-      t5 = datetime.strptime('16:00:00', self.time_format).time()
-      t6 = datetime.strptime('20:00:00', self.time_format).time()
-      t7 = datetime.strptime('23:00:00', self.time_format).time()
       for t in tt:
-        if t < t1 or t >= t7:
-          tt[t] = 100
-        elif t < t2:
-          tt[t] = 100
-        elif t < t3:
-          tt[t] = 250
-        elif t < t4:
-          tt[t] = 500
-        elif t < t5:
-          tt[t] = 200
-        elif t < t6:
-          tt[t] = 400
-        elif t < t7:
-          tt[t] = 200
+        if   t < datetime.strptime('06:00:00', self.time_format).time():
+          tt[t] = 10
+        elif t < datetime.strptime('07:00:00', self.time_format).time():
+          tt[t] = 20
+        elif t < datetime.strptime('09:00:00', self.time_format).time():
+          tt[t] = 60
+        elif t < datetime.strptime('11:00:00', self.time_format).time():
+          tt[t] = 30
+        elif t < datetime.strptime('14:00:00', self.time_format).time():
+          tt[t] = 40
+        elif t < datetime.strptime('19:00:00', self.time_format).time():
+          tt[t] = 30
+        else:
+          tt[t] = 10
       self.tt_raw = tt
 
-      runave_size = 5 * 60 * 60 // self.rates_dt # running average idx interval from time in seconds
-      kern = np.concatenate([ np.ones((runave_size,))/runave_size, np.zeros((len(tt) - runave_size, )) ])
-      conv = np.real(np.fft.ifft( np.fft.fft(list(tt.values())) * np.fft.fft(kern) ))
+      runave_size = 2 * 60 * 60 // self.rates_dt # running average idx interval from time in seconds
+      kern = box_centered_kernel(len(tt), runave_size)
+      conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft(list(tt.values())) * np.fft.fft(kern) )))
+      #conv = list(tt.values())
       tt = { t : v for t, v in zip( tt.keys(), conv ) }
       #############################################################
 
       df = pd.DataFrame([], index=tt.keys())
+      #print(self.params[city]['daily_t'])
       for i, day in enumerate(weekdays):
-        scale = ( len(weekdays) - i ) / len(weekdays)
-        df[day] = [ scale * v for v in tt.values() ]
+        vals = np.asarray(list(tt.values()))
+        df[day] = vals / vals.sum() * self.params[city]['daily_t']
+        #print(day, df[day].sum())
       df = df.astype('int')
       df.index = pd.to_datetime(df.index, format=self.time_format)
       df.index.name = 'time'
@@ -187,26 +195,6 @@ class model_slides:
     self.models[(city, tag)] = {
       'm0' : m0filename
     }
-
-  def bla():
-    #df_data = pd.DataFrame(result, columns=['datetime','counter','barrier'])
-    df_data = pd.read_csv(m0_data_file, sep=';')
-    df_data.time = pd.to_datetime(df_data.time, format=self.date_format)
-    df_data.time = [ t.replace(
-        year=start.year,
-        month=start.month,
-        day=start.day
-      )
-      for t in df_data.time
-    ]
-    self.df_data_day = df_data.set_index('time')
-
-    mask = (df_data.time >= start) & (df_data.time < stop)
-    df_data = df_data[mask].set_index('time')
-
-    self.got_data = True
-    self.df_data = df_data
-    return df_data
 
   def rescale_data(self, start, stop, df, tot = None, max = None, min = None):
     df.time = pd.to_datetime(df.time, format=self.date_format)

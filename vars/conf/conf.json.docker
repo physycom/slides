@@ -1,12 +1,7 @@
 {
   "work_dir" : "/output",
 
-  "model0" : {
-    "data_dir" : "/output/m0_data"
-  },
-
   "kml_data" : {
-    "work_dir" : "/output/kml_data",
     "mymaps_id" : {
       "bari"      : "1tMT72fYkC2FxAo5SUQFI-fxwn3sp42Z0",
       "dubrovnik" : "1p55-Ymxo0RZ4FuYdswPIbUXWn31JjP71",
@@ -17,7 +12,6 @@
   },
 
   "model_data": {
-    "work_dir": "/output/m_data",
 
     "model1_file_dir" : [
       "/output/data_real",
@@ -65,7 +59,5 @@
     "venezia" : {
 
     }
-  },
-
-  "last" : {}
+  }
 }

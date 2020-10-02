@@ -4,6 +4,7 @@ import json
 import sys
 import os
 import numpy as np
+import pandas as pd
 from datetime import datetime, timedelta
 from dateutil import tz
 
@@ -49,8 +50,10 @@ class conf:
       self.wdir = config['work_dir']
       if not os.path.exists(self.wdir): os.mkdir(self.wdir)
 
+      config['model_data']['work_dir'] = f'{self.wdir}/m_data'
       self.ms = model_slides(config['model_data'], self.logger)
 
+      config['kml_data']['work_dir'] = f'{self.wdir}/kml_data'
       self.dbk = db_kml(config['kml_data'], self.logger)
 
     except Exception as e:
@@ -85,20 +88,42 @@ class conf:
     ttrates = { t : 0 for t in [ mid_start + i*timedelta(seconds=self.rates_dt) for i in range(rates_per_day) ] }
     sources = {}
 
-    # tourist sources
+    # sources timetable df generation
     src_list = self.dbk.get_sources(citytag)
+    srcdata = pd.DataFrame()
     for tag, src in src_list.items():
       #print(tag, src)
       data = self.ms.full_table(start, stop, citytag, tag)
       #print('data\n', data)
 
-      if 'weight' in src: # if ferrara
-        # calcolo tot sniffer
-        # tot m0 (start, stop) - tot sniffer (start, stop)
-        # spalmo su src non sniffer
-        data = data * src['weight']
-      #print('rescaled ', data)
+      if len(srcdata) == 0:
+        srcdata = data
+      else:
+        srcdata = srcdata.join(data)
+    #print(srcdata)
 
+    # city-specific caveat
+    if citytag == 'ferrara':
+      snif_src = { src : None for src in src_list }
+      params = self.ms.mod_fe.station_map
+      snif_src.update({ src : snif for snif in params for src in params[snif] })
+      src_num = len(snif_src)
+      #print(snif_src)
+      norm_src = [ n for n, v in snif_src.items() if v == None ]
+      m0_num = len(norm_src)
+      #print(norm_src)
+      log_print(f'Caveat FE - tot src {src_num}, m0 src {m0_num}', self.logger)
+      norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
+      norm_wei /= ( norm_wei.sum() * src_num / m0_num )
+      #print(norm_wei)
+      for s, c in zip(norm_src, norm_wei):
+        srcdata[s] *= c
+
+    # cast dataframe to timetable json format
+    for tag in srcdata.columns:
+      data = srcdata[[tag]].copy()
+
+      # wrap around midnight
       tt = ttrates.copy()
       rates = { t.replace(
           year=mid_start.year,
@@ -128,6 +153,7 @@ class conf:
           }
         }
       })
+
 
     """
     # control

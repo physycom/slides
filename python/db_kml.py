@@ -202,7 +202,7 @@ class db_kml:
       k.replace(' ', '_') : {
         'lat'    : v['lat'],
         'lon'    : v['lon'],
-        'weight' : r.uniform(1, 2)
+        'weight' : 1 #r.uniform(1, 2)
       }
       for k,v in locations.items() if v['role'] == 'source'
     }

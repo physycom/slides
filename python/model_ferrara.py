@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ##########################
 #### log function ########
@@ -35,13 +35,19 @@ class model_ferrara():
     self.time_format = '%H:%M:%S'
     self.rates_dt = 10 * 60
     self.config = config
-    self.station_map = config['station_mapping']
+    self.station_map = {}
     self.data = pd.DataFrame()
+
+    if 'station_mapping' in config:
+      self.station_map = config['station_mapping']
 
     with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'extra', 'ferrara_sniffer.json')) as sin:
       self.st_info = json.load(sin)
 
   def full_table(self, start, stop, tag, resampling=None):
+    if len(self.station_map) == 0:
+      raise Exception(f'No station to generate')
+
     log_print(f'Generating model FE for {tag}', self.logger)
 
     if len(self.data) == 0:
@@ -56,17 +62,33 @@ class model_ferrara():
     else:
       raise Exception(f'[mod_fe] No station match for source {tag}')
 
-    # downsample
+    # upsample
     if resampling != None and resampling < self.rates_dt:
-      data = data.resample(f'{resampling}s').interpolate()
+      dtot = data.sum()
+      data = data.resample(f'{resampling}s').interpolate(direction='both')
+      data = data * dtot / data.sum()
 
+      resampling_min = resampling // 60
+      start_date = start.replace(
+        minute=resampling_min*(start.minute//resampling_min),
+        second=0
+      )
+      stop_date = stop - timedelta(seconds=1)
+      stop_date = stop_date.replace(
+        minute=resampling_min*(stop_date.minute//resampling_min),
+        second=0
+      )
+      fullt = pd.date_range(start_date, stop_date, freq=f'{resampling}s' )
+      data = data.reindex(fullt).interpolate(direction='both')
+
+    data = data[ (data.index >= start) & (data.index < stop) ]
     return data
 
   def count_raw(self, start, stop):
     """
     Perform device id counting with fine temporal scale
     """
-    log_print(f'Counting raw data', self.logger)
+    #log_print(f'Counting raw data', self.logger)
 
     df = self.get_data_mongo(start, stop)
 
@@ -100,7 +122,7 @@ class model_ferrara():
     cnts = cnts.reset_index().interpolate(limit=10000, limit_direction='both').set_index('index')
     cnts.index.name = 'time'
     tcounting = datetime.now() - tnow
-    log_print(f'Counting done in {tcounting}\n', self.logger)
+    log_print(f'Counting done in {tcounting}', self.logger)
 
     # convert to source/attractions naming convention
     smap = self.station_map
@@ -145,10 +167,10 @@ class model_ferrara():
       }
       #print(json.dumps(db_filter, indent=2))
       cursor = client['symfony'].FerraraPma.find(db_filter, db_fields)
-      tquery = datetime.now() - tnow
-
       df = pd.DataFrame(list(cursor))
       df.index = pd.to_datetime(df.date_time)
+      tquery = datetime.now() - tnow
+
       log_print(f'Received {len(df)} raw data in {tquery}', self.logger)
 
       return df
