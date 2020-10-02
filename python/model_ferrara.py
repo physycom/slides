@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
 import os
-import pymongo
 import json
 import argparse
 import numpy as np
@@ -9,6 +8,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import json
 from datetime import datetime, timedelta
+import pymongo
+import mysql.connector
 
 ##########################
 #### log function ########
@@ -136,9 +137,13 @@ class model_ferrara():
 
   def get_data_mongo(self, start, stop):
     try:
-      config = self.config
+      config = self.config['mongo']
       station_list = self.station_map.keys()
+      start_date = start.strftime(self.date_format)
+      stop_date = stop.strftime(self.date_format)
 
+      """
+      # mongo
       client = pymongo.MongoClient(
         host          = config['host'],
         port          = config['port'],
@@ -148,8 +153,7 @@ class model_ferrara():
         authMechanism = config['aut']
       )
       #print(f'Authentication ok')
-      start_date = start.strftime(self.date_format)
-      stop_date = stop.strftime(self.date_format)
+
       tnow = datetime.now()
       db_filter = {
         'date_time' : {
@@ -168,10 +172,59 @@ class model_ferrara():
       #print(json.dumps(db_filter, indent=2))
       cursor = client['symfony'].FerraraPma.find(db_filter, db_fields)
       df = pd.DataFrame(list(cursor))
+      if len(df) == 0:
+        raise Exception(f'[mod_fe] Empty mongo query result')
+
       df.index = pd.to_datetime(df.date_time)
       tquery = datetime.now() - tnow
+      log_print(f'Received {len(df)} mongo data in {tquery}', self.logger)
+      #print(df)
+      """
 
-      log_print(f'Received {len(df)} raw data in {tquery}', self.logger)
+      # mysql
+      config = self.config['mysql']
+      db = mysql.connector.connect(
+        host     = config['host'],
+        port     = config['port'],
+        user     = config['user'],
+        passwd   = config['pwd'],
+        database = config['db']
+      )
+      cursor = db.cursor()
+
+      station_filter = ' OR '.join([ f"s.station_name = '{self.st_info[sid]['station_name']}'" for sid in station_list ])
+      query = f"""
+        SELECT
+          ds.date_time as date_time,
+          ds.id_device as mac_address,
+          s.station_name as station_name
+        FROM
+          DevicesStations ds
+        JOIN
+          Stations s
+        ON
+          ds.id_station = s.id
+        WHERE
+          ({station_filter})
+        AND
+          (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
+      """
+      #print(query)
+
+      tquery = datetime.now()
+      cursor.execute(query)
+      result = cursor.fetchall()
+      tquery = datetime.now() - tquery
+      log_print(f'Received {len(result)} mysql data in {tquery}', self.logger)
+      if len(result) == 0:
+        raise Exception(f'[mod_fe] Empty mysql query result')
+
+      df1 = pd.DataFrame(result)
+      df1.columns =  cursor.column_names
+      df1 = df1.set_index('date_time')
+      df1.index = pd.to_datetime(df1.index)
+      df = df1
+      #print(df1)
 
       return df
     except Exception as e:

@@ -31,12 +31,22 @@
         "population"    : 3000,
         "daily_tourist" : 20000,
 
-        "host" : "94.198.98.184",
-        "port" : 27017,
-        "user" : "readerB",
-        "pwd"  : "L8mVr0gaMgxoy6tgAT0v",
-        "db"   : "symfony",
-        "aut"  : "SCRAM-SHA-256",
+        "mongo" : {
+          "host" : "94.198.98.184",
+          "port" : 27017,
+          "user" : "readerB",
+          "pwd"  : "L8mVr0gaMgxoy6tgAT0v",
+          "db"   : "symfony",
+          "aut"  : "SCRAM-SHA-256"
+        },
+
+        "mysql" : {
+          "host" : "94.198.98.184",
+          "port" : 3306,
+          "user" : "slides",
+          "pwd"  : "3ryoFLMAIgwTnQY8YmBX",
+          "db"   : "FerraraPma"
+        },
 
         "station_mapping" : {
           "1" : [
