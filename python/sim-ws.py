@@ -10,7 +10,6 @@
 import sys
 import os
 import json
-from jsonschema import validate, exceptions
 from datetime import datetime
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException, Response
@@ -38,14 +37,6 @@ try:
 except Exception as e:
   raise Exception('library loading error : {}'.format(e)) from e
 
-try:
-  schema_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'schema', 'schema_request.json')
-  with open(schema_file) as sin:
-    schema = json.load(sin)
-
-except Exception as e:
-  raise Exception('schema file loading error : {}'.format(e)) from e
-
 # init
 tags_metadata = [
   {
@@ -58,12 +49,21 @@ tags_metadata = [
   },
   {
       "name": "poly",
-      "description": "Geojson API.",
+      "description": "Geojson cartography API.",
       "externalDocs": {
           "description": "Geojson specs",
           "url": "https://geojson.org/",
       },
   },
+  {
+      "name": "grid",
+      "description": "Geojson grid API.",
+      "externalDocs": {
+          "description": "Geojson specs",
+          "url": "https://geojson.org/",
+      },
+  },
+
 ]
 
 app = FastAPI(
@@ -92,6 +92,9 @@ class response_poly(BaseModel):
   message : str = 'geojson OK'
   geojson : dict = {}
 
+class response_grid(BaseModel):
+  message : str = 'geojson OK'
+  geojson : dict = {}
 
 ##########################
 #### log function ########
@@ -203,7 +206,7 @@ async def poly_get(request: Request, citytag: str = ''):
 
   except Exception as e:
     log_print('conf generation failed : {}'.format(e))
-    raise HTTPException(status_code=500, detail='geojson conf init failed : {}'.format(e))
+    raise HTTPException(status_code=500, detail='grid geojson conf init failed : {}'.format(e))
 
   if citytag not in cw.cparams:
     raise HTTPException(status_code=401, detail='malformed url citytag {} not in {}'.format(citytag, cw.cparams.keys()))
@@ -218,7 +221,7 @@ async def poly_get(request: Request, citytag: str = ''):
   with open(cw.cparams[citytag]) as tin:
     simconf = json.load(tin)
   confs = json.dumps(simconf)
-  with open(wdir + '/wsconf_geojson_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
+  with open(wdir + '/wsconf_poly_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
   #print(confs, flush=True)
 
   s = simulation(confs)
@@ -228,13 +231,67 @@ async def poly_get(request: Request, citytag: str = ''):
     geojf = base + '.geojson'
     if not os.path.exists(geojf):
       s.dump_poly_geojson(base)
-    with open(base + '.geojson') as gin:
+    with open(geojf) as gin:
       geoj = json.load(gin)
     ret = {
       'message' : 'geojson ok',
+      'type'    : 'poly',
       'geojson' : geoj
     }
   else:
-    raise HTTPException(status_code=501, detail='geojson creation for \'{}\' failed'.format(citytag))
+    raise HTTPException(status_code=501, detail='poly geojson creation for \'{}\' failed'.format(citytag))
+
+  return ret
+
+@app.get('/grid',
+  response_model=response_grid,
+  tags=['grid']
+)
+async def grid_get(request: Request, citytag: str = ''):
+  client_ip = request.client.host
+  log_print(f'Request from {client_ip} for {citytag} grid')
+
+  # init conf
+  try:
+    cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf', 'conf.json')
+    with open(cfg_file) as cin: cfg = json.load(cin)
+    cw = conf(cfg)
+
+  except Exception as e:
+    log_print('conf generation failed : {}'.format(e))
+    raise HTTPException(status_code=500, detail='grid geojson conf init failed : {}'.format(e))
+
+  if citytag not in cw.cparams:
+    raise HTTPException(status_code=401, detail='malformed url citytag {} not in {}'.format(citytag, cw.cparams.keys()))
+
+  wdir = cw.wdir
+  try:
+    os.chdir(wdir)
+  except:
+    os.mkdir(wdir)
+    os.chdir(wdir)
+
+  with open(cw.cparams[citytag]) as tin:
+    simconf = json.load(tin)
+  confs = json.dumps(simconf)
+  with open(wdir + '/wsconf_grid_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
+  #print(confs, flush=True)
+
+  s = simulation(confs)
+
+  if s.is_valid():
+    base =  wdir + '/grid_{}'.format(citytag)
+    geojf = base + '.geojson'
+    if not os.path.exists(geojf):
+      s.dump_grid_geojson(geojf)
+    with open(geojf) as gin:
+      geoj = json.load(gin)
+    ret = {
+      'message' : 'geojson ok',
+      'type'    : 'grid',
+      'geojson' : geoj
+    }
+  else:
+    raise HTTPException(status_code=501, detail='grid geojson creation for \'{}\' failed'.format(citytag))
 
   return ret
