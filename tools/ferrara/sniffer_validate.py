@@ -33,6 +33,8 @@ if __name__ == '__main__':
   df = pd.read_csv(args.input, sep=';')
   df.date_time = pd.to_datetime(df.date_time)
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
+  if 'kind' not in df.columns: df['kind'] = 'wifi'
+  if '_id' not in df.columns: df['_id'] = 1
   print(df)
 
   """

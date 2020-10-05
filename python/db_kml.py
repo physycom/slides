@@ -193,7 +193,7 @@ class db_kml:
           'lat' : v['lat'],
           'lon' : v['lon'],
           'weight' : 0.5,
-          'timecap' : [ 1000 ],
+          'timecap' : [ 10000 ],
           'visit_time' : 300
       }
       for k,v in locations.items() if v['role'] == 'attraction'

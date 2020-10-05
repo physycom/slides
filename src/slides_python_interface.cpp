@@ -65,7 +65,6 @@ struct pysimulation
     }
   }
 
-
   std::string poly_outfile()
   {
     return (s != nullptr) ? s->poly_outfile : std::string("null");

@@ -101,6 +101,7 @@ class conf:
       else:
         srcdata = srcdata.join(data)
     #print(srcdata)
+    #print(srcdata.sum())
 
     # city-specific caveat
     if citytag == 'ferrara':
@@ -118,6 +119,11 @@ class conf:
       #print(norm_wei)
       for s, c in zip(norm_src, norm_wei):
         srcdata[s] *= c
+
+    # log totals for debug
+    for c, v in srcdata.sum().items():
+      log_print(f'Source {c} total pawn : {v:.2f}', self.logger)
+    log_print(f'Simulation total pawn ; {srcdata.sum().sum():.2f}', self.logger)
 
     # cast dataframe to timetable json format
     for tag in srcdata.columns:
