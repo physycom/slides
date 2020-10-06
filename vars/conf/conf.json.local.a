@@ -25,11 +25,11 @@
       },
       "dubrovnik": {
         "population"    : 2000,
-        "daily_tourist" : 20000
+        "daily_tourist" : 10000
       },
       "ferrara": {
         "population"    : 3000,
-        "daily_tourist" : 20000,
+        "daily_tourist" : 15000,
 
         "mongo" : {
           "host" : "94.198.98.184",
@@ -60,7 +60,7 @@
       },
       "sybenik": {
         "population": 4000,
-        "daily_tourist": 20000
+        "daily_tourist": 5000
       },
       "venezia": {
         "population": 5000,

@@ -94,26 +94,28 @@ if __name__ == '__main__':
           outname = f'{sid:>04s}_response.json'
 
           # make plot (only localhost scan)
-          if do_png:
-            conf = f'{wsdir}/wsconf_sim_{city}.json'
-            conf_clone = f'{wdir}/{sid:>04s}_conf.json'
-            shutil.copyfile(conf, conf_clone)
-            outpng = f'{wdir}/{sid:>04s}_conf.png'
-            sim_plot(confin=conf, outpng=outpng)
+          try:
+            if do_png:
+              conf = f'{wsdir}/wsconf_sim_{city}.json'
+              conf_clone = f'{wdir}/{sid:>04s}_conf.json'
+              shutil.copyfile(conf, conf_clone)
+              outpng = f'{wdir}/{sid:>04s}_conf.png'
+              sim_plot(confin=conf, outpng=outpng)
 
-            sd = datetime.strptime(s['start_date'], date_format).strftime(short_format)
-            popf = f'{wsdir}/r_{city}_population_{sd}.csv'
-            popf_clone = f'{wdir}/{sid:>04s}_pop.csv'
-            shutil.copyfile(popf, popf_clone)
-            outpng = f'{wdir}/{sid:>04s}_pop.png'
-            sim_plot(popin=popf, outpng=outpng)
+              sd = datetime.strptime(s['start_date'], date_format).strftime(short_format)
+              popf = f'{wsdir}/r_{city}_population_{sd}.csv'
+              popf_clone = f'{wdir}/{sid:>04s}_pop.csv'
+              shutil.copyfile(popf, popf_clone)
+              outpng = f'{wdir}/{sid:>04s}_pop.png'
+              sim_plot(popin=popf, outpng=outpng)
 
-            statsf = f'{wsdir}/r_{city}_pstats_{sd}.csv'
-            statsf_clone = f'{wdir}/{sid:>04s}_pstats.csv'
-            shutil.copyfile(statsf, statsf_clone)
-            outbase = f'{wdir}/{sid:>04s}_pstats'
-            sim_stats(statsin=statsf, outbase=outbase)
-
+              statsf = f'{wsdir}/r_{city}_pstats_{sd}.csv'
+              statsf_clone = f'{wdir}/{sid:>04s}_pstats.csv'
+              shutil.copyfile(statsf, statsf_clone)
+              outbase = f'{wdir}/{sid:>04s}_pstats'
+              sim_stats(statsin=statsf, outbase=outbase)
+          except:
+            pass
 
           if res.status_code != 200:
             print('request error : {}'.format(res.content))
