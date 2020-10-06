@@ -125,7 +125,7 @@ class model_ferrara():
     tcounting = datetime.now() - tnow
     log_print(f'Counting done in {tcounting}', self.logger)
 
-    # convert to source/attractions naming convention
+    # convert to source/attractions naming convention and apply station-to-source mapping
     smap = self.station_map
     data = pd.DataFrame(index=cnts.index)
     for sid, names in smap.items():
@@ -142,8 +142,9 @@ class model_ferrara():
       start_date = start.strftime(self.date_format)
       stop_date = stop.strftime(self.date_format)
 
-      # mongo
-      if True:
+      use_mongo = False
+      if use_mongo:
+        # mongo
         client = pymongo.MongoClient(
           host          = config['host'],
           port          = config['port'],
@@ -179,9 +180,8 @@ class model_ferrara():
         tquery = datetime.now() - tnow
         log_print(f'Received {len(df)} mongo data in {tquery}', self.logger)
         #print(df)
-
-      # mysql
-      if False:
+      else:
+        # mysql
         config = self.config['mysql']
         db = mysql.connector.connect(
           host     = config['host'],
@@ -192,7 +192,56 @@ class model_ferrara():
         )
         cursor = db.cursor()
 
+        # fetch mysql station id
         station_filter = ' OR '.join([ f"s.station_name = '{self.st_info[sid]['station_name']}'" for sid in station_list ])
+        query = f"""
+          SELECT
+            s.id,
+            s.station_name
+          FROM
+            Stations s
+          WHERE
+            {station_filter}
+        """
+        print(query)
+        cursor.execute(query)
+        result = cursor.fetchall()
+        print(result)
+        sidconv = { v[0] : v[1] for v in result }
+        print('sid', sidconv)
+
+        query = f"""
+          SELECT
+            ds.date_time as date_time,
+            ds.id_device as mac_address,
+            ds.id_station as station_mysql_id
+          FROM
+            DevicesStations ds
+          WHERE
+            (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
+            AND
+            (ds.id_station IN {tuple(sidconv.keys())} )
+        """
+        print(query)
+        #exit(1)
+
+        tquery = datetime.now()
+        cursor.execute(query)
+        result = cursor.fetchall()
+        tquery = datetime.now() - tquery
+        log_print(f'Received {len(result)} mysql data in {tquery}', self.logger)
+        if len(result) == 0:
+          raise Exception(f'[mod_fe] Empty mysql query result')
+
+        df1 = pd.DataFrame(result)
+        df1.columns =  cursor.column_names
+        df1 = df1.set_index('date_time')
+        df1.index = pd.to_datetime(df1.index)
+        df1['station_name'] = [ sidconv[n] for n in df1.station_mysql_id.values ]
+        df1 = df1.drop(columns=['station_mysql_id'])
+        df = df1
+
+        '''
         query = f"""
           SELECT
             ds.date_time as date_time,
@@ -210,6 +259,7 @@ class model_ferrara():
             (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
         """
         #print(query)
+        exit(1)
 
         tquery = datetime.now()
         cursor.execute(query)
@@ -225,7 +275,7 @@ class model_ferrara():
         df1.index = pd.to_datetime(df1.index)
         #print(df1)
         df = df1
-
+        '''
       return df
     except Exception as e:
       raise Exception(f'[mod_fe] Query failed : {e}')

@@ -72,21 +72,42 @@ if __name__ == '__main__':
       )
       cursor = db.cursor()
 
+      # fetch mysql station id
+      station_list = [
+        'Corso di p. reno /via ragno (4)',
+        'Castello via martiri (1)'
+      ]
+      station_filter = ' OR '.join([ f"s.station_name = '{name}'" for name in station_list ])
+      query = f"""
+        SELECT
+          s.id,
+          s.station_name
+        FROM
+          Stations s
+        WHERE
+          {station_filter}
+      """
+      print(query)
+      cursor.execute(query)
+      result = cursor.fetchall()
+      print(result)
+      sidconv = { v[0] : v[1] for v in result }
+      print('sid', sidconv)
+
       query = f"""
         SELECT
           ds.date_time as date_time,
           ds.id_device as mac_address,
-          s.station_name as station_name
+          ds.id_station as station_mysql_id
         FROM
           DevicesStations ds
-        JOIN
-          Stations s
-        ON
-          ds.id_station = s.id
         WHERE
           (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
+          AND
+          (ds.id_station IN {tuple(sidconv.keys())} )
       """
       print(query)
+      #exit(1)
 
       tquery = datetime.now()
       cursor.execute(query)
@@ -96,9 +117,12 @@ if __name__ == '__main__':
 
       df = pd.DataFrame(result)
       df.columns =  cursor.column_names
+      df['station_name'] = [ sidconv[n] for n in df.station_mysql_id.values ]
+      df = df.drop(columns=['station_mysql_id'])
+      print(df)
 
     out = f'{base}_{start_tag}_{stop_tag}_{args.dev}.csv'
-    df.to_csv(out, sep=';', header=True, index=True)
+    df.to_csv(out, sep=';', header=True, index=False)
 
   except Exception as e:
     print('Connection error : {}'.format(e))
