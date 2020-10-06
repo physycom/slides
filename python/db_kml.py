@@ -66,9 +66,14 @@ class db_kml:
     if citytag == 'bari':
       for pm in folder.Placemark:
         role = 'none'
-        if re.match('.*limite.*', pm.name.text) != None: role = 'bbox'
+        if re.match('.*limite.*', pm.name.text) != None: continue
         point = [p for p in pm.getchildren() if p.tag.endswith('Point')]
         if point:
+          #print(pm.name, pm.description)
+          desc = pm.description.text
+          if re.match('.*poi A.*', desc) != None: role = 'attraction'
+          elif re.match('.*accesso.*', desc) != None: role = 'source'
+          else: continue
           lon, lat, z = point[0].coordinates.text.split(',')
           locations[pm.name.text] = {
             'type' : 'Point',
@@ -194,7 +199,7 @@ class db_kml:
           'lon' : v['lon'],
           'weight' : 0.5,
           'timecap' : [ 10000 ],
-          'visit_time' : 300
+          'visit_time' : 3600
       }
       for k,v in locations.items() if v['role'] == 'attraction'
     }

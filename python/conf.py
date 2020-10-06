@@ -113,12 +113,15 @@ class conf:
       norm_src = [ n for n, v in snif_src.items() if v == None ]
       m0_num = len(norm_src)
       #print(norm_src)
-      log_print(f'Caveat FE - tot src {src_num}, m0 src {m0_num}', self.logger)
+      log_print(f'Caveat FE - src {src_num}, m0_src {m0_num}', self.logger)
       norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
       norm_wei /= ( norm_wei.sum() * src_num / m0_num )
       #print(norm_wei)
       for s, c in zip(norm_src, norm_wei):
         srcdata[s] *= c
+    else:
+      for s in src_list:
+        srcdata[s] /= len(src_list)
 
     # log totals for debug
     for c, v in srcdata.sum().items():
