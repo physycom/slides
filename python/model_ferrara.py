@@ -203,12 +203,12 @@ class model_ferrara():
           WHERE
             {station_filter}
         """
-        print(query)
+        #print(query)
         cursor.execute(query)
         result = cursor.fetchall()
-        print(result)
+        #print(result)
         sidconv = { v[0] : v[1] for v in result }
-        print('sid', sidconv)
+        #print('sid', sidconv)
 
         query = f"""
           SELECT
@@ -222,8 +222,7 @@ class model_ferrara():
             AND
             (ds.id_station IN {tuple(sidconv.keys())} )
         """
-        print(query)
-        #exit(1)
+        #print(query)
 
         tquery = datetime.now()
         cursor.execute(query)
@@ -241,41 +240,6 @@ class model_ferrara():
         df1 = df1.drop(columns=['station_mysql_id'])
         df = df1
 
-        '''
-        query = f"""
-          SELECT
-            ds.date_time as date_time,
-            ds.id_device as mac_address,
-            s.station_name as station_name
-          FROM
-            DevicesStations ds
-          JOIN
-            Stations s
-          ON
-            ds.id_station = s.id
-          WHERE
-            ({station_filter})
-          AND
-            (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
-        """
-        #print(query)
-        exit(1)
-
-        tquery = datetime.now()
-        cursor.execute(query)
-        result = cursor.fetchall()
-        tquery = datetime.now() - tquery
-        log_print(f'Received {len(result)} mysql data in {tquery}', self.logger)
-        if len(result) == 0:
-          raise Exception(f'[mod_fe] Empty mysql query result')
-
-        df1 = pd.DataFrame(result)
-        df1.columns =  cursor.column_names
-        df1 = df1.set_index('date_time')
-        df1.index = pd.to_datetime(df1.index)
-        #print(df1)
-        df = df1
-        '''
       return df
     except Exception as e:
       raise Exception(f'[mod_fe] Query failed : {e}')

@@ -163,6 +163,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
   simconf['stop_date'] = stop_date
   simconf['sampling_dt'] = sampling_dt
   simconf['state_basename'] = wdir + '/r_{}'.format(citytag)
+  simconf['enable_stats'] = True
   #simconf['explore_node'] = [0]
   confs = json.dumps(simconf)
   with open(wdir + '/wsconf_sim_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
