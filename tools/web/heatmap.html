@@ -9,43 +9,52 @@
   </head>
   <body>
     <div id="map" class="map" style="height:80vh; width:70vw"></div>
-    <div id="date-time">Date-time: none</div>
-    <div id="ranges">Ranges: none</div>
+
+    <p id="date-time">Date-time: none</p>
+
+    <label id="ranges">Ranges: none</label>
     <label id="lbl-min-cnt" for="min-input">min</label>
-    <input id="min-input" type="range" min="-200" max="500" step="10" value="0" onchange="min_input_update()">
+    <input id="min-input" type="number" min="-100" max="500" step="1" onchange="min_input_update()">
     <label id="lbl-max-cnt" for="max-input">max</label>
-    <input id="max-input" type="range" min="10" max="5000" step="5" value="1000" onchange="max_input_update()">
-    <label id="lbl-time-input" for="time-input">time step:</label>
-    <input id="time-input" type="range" min="10" max="1000" step="10" value="50" onchange="time_input_update()">
+    <input id="max-input" type="number" min="0" max="1000" step="1" onchange="max_input_update()">
+    <label id="lbl-radius" for="radius-input"></label>
+    <input id="radius-input" type="number" min="0" max="1000" step="1">
+    <label id="lbl-blur" for="blur-input"></label>
+    <input id="blur-input" type="number" min="0" max="1000" step="1">
+    <br>
+
+    <label id="lbl-slider-animation" for="slider-animation">Time index :</label>
+    <input id="slider-animation" type="range" min="0" max="100" step="1">
     <button id="start-animation">Start Animation</button>
+    <label id="lbl-time-input" for="time-input">time step:</label>
+    <input id="time-input" type="number" min="10" max="1000" step="1" value="50" onchange="time_input_update()">
     <button id="backward-animation">-</button>
     <button id="forward-animation">+</button>
-    <input type="checkbox" id="loop-input">Loop<br>
+    <input id="loop-input" type="checkbox">Loop
     <script>
       // global parameters
-      var minCnt = -10
-      var maxCnt = 200
-      var timeIdx = 0;
-      var timeSlice = 100
+      var minCnt = 0
+      var maxCnt = 100
+      var timeIdx = 0
+      var timeSlice = 0
+      var radiusHeat = 15
+      var blurHeat = 15
 
       // update function
       function min_input_update(){
         minCnt = document.getElementById('min-input').value;
         document.getElementById('ranges').innerHTML = 'Range: ' + minCnt + ' - ' + maxCnt;
       }
-      min_input_update();
 
       function max_input_update(){
         maxCnt = document.getElementById('max-input').value;
         document.getElementById('ranges').innerHTML = 'Range: ' + minCnt + ' - ' + maxCnt;
       }
-      max_input_update();
 
       function time_input_update(){
         var ts = 'time step: ' + document.getElementById('time-input').value + 'ms   ';
         document.getElementById('lbl-time-input').innerHTML = ts;
       }
-      time_input_update();
 
       // parse current url to construct proper acemap geojson fetching url
       var url = window.location.href
@@ -69,6 +78,18 @@
       var geojsonObject = JSON.parse(j);
       timeSlice = geojsonObject['times'].length;
       document.getElementById('date-time').innerHTML = 'Date-time: ' + geojsonObject['times'][timeIdx];
+      document.getElementById('radius-input').value = radiusHeat;
+      document.getElementById('lbl-radius').innerHTML = 'Radius: ' + radiusHeat;
+      document.getElementById('blur-input').value = blurHeat;
+      document.getElementById('lbl-blur').innerHTML = 'Blur: ' + blurHeat;
+      document.getElementById('slider-animation').max = timeSlice - 1;
+      document.getElementById('slider-animation').value = 0;
+      document.getElementById('lbl-slider-animation').innerHTML = 'Time index : ' + timeIdx + '/' + timeSlice;
+      document.getElementById('min-input').value = minCnt;
+      document.getElementById('max-input').value = maxCnt;
+      min_input_update();
+      max_input_update();
+      time_input_update();
 
       // create vector layer source
       var vectorSource = new ol.source.Vector({
@@ -81,13 +102,24 @@
 
       function weightHeatmap(feature) {
         var val = feature.get('time_cnt')[timeIdx] == null ? 0.1 : feature.get('time_cnt')[timeIdx];
+        //console.log(val)
         return (val - minCnt) / (maxCnt - minCnt);
+      }
+
+      function radiusHeatmap(feature) {
+        val = document.getElementById('radius-input').value;
+        //console.log(val)
+        return val;
+      }
+
+      function blurHeatmap(feature) {
+        return document.getElementById('blur-input').value;
       }
 
       var heatMaplayer = new ol.layer.Heatmap({
         source: vectorSource,
-        blur: 15,
-        radius: 15,
+        blur: 15, //blurHeatmap,
+        radius: 15, //radiusHeatmap,
         weight: weightHeatmap
       });
 
@@ -136,6 +168,7 @@
             }
           }
           document.getElementById('date-time').innerHTML = 'Date-time: ' + geojsonObject['times'][timeIdx];
+          document.getElementById('slider-animation').value = timeIdx
         }
         vectorSource.refresh(); // trigger cascade refresh
         map.render();
@@ -148,7 +181,7 @@
           animating = true;
           timeNow = new Date().getTime();
           timeInterval = timeInput.value;
-          startButton.textContent = 'Cancel Animation';
+          startButton.textContent = 'Stop Animation';
           map.on('postcompose', moveFeature);
           map.render();
         }
@@ -159,12 +192,13 @@
       function stopAnimation(ended) {
         animating = false;
         startButton.textContent = 'Start Animation';
-        timeIdx = 0;
+        //timeIdx = 0;
         map.un('postcompose', moveFeature);
       }
 
       function forwardAnimation() {
         timeIdx = (timeIdx > timeSlice - 1) ? 0 : timeIdx + 1;
+        document.getElementById('slider-animation').value = timeIdx;
         document.getElementById('date-time').innerHTML = 'Date-time: ' + geojsonObject['times'][timeIdx];
         vectorSource.refresh(); // trigger cascade refresh
         map.render();
@@ -174,6 +208,7 @@
 
       function backwardAnimation() {
         timeIdx = (timeIdx < 1) ? timeSlice - 1 : timeIdx - 1;
+        document.getElementById('slider-animation').value = timeIdx
         document.getElementById('date-time').innerHTML = 'Date-time: ' + geojsonObject['times'][timeIdx];
         vectorSource.refresh(); // trigger cascade refresh
         map.render();
@@ -181,6 +216,25 @@
       var backwardButton = document.getElementById('backward-animation');
       backwardButton.addEventListener('click', backwardAnimation, false);
 
+      function sliderAnimation(){
+        timeIdx = document.getElementById('slider-animation').value;
+        document.getElementById('lbl-slider-animation').innerHTML = 'Time index : ' + timeIdx + '/' + timeSlice;
+        document.getElementById('date-time').innerHTML = 'Date-time: ' + geojsonObject['times'][timeIdx];
+        vectorSource.refresh(); // trigger cascade refresh
+        map.render();
+      }
+      var animationSlider = document.getElementById('slider-animation');
+      animationSlider.addEventListener('change', sliderAnimation, false);
+
+      function updateRadius(){
+        val = document.getElementById('radius-input').value;
+        document.getElementById('lbl-radius').innerHTML = 'Radius: ' + val;
+        heatMaplayer.setRadius(val);
+        //vectorSource.refresh();
+        map.render();
+      }
+      var radiusInput = document.getElementById('radius-input');
+      radiusInput.addEventListener('change', updateRadius, false);
 
     </script>
   </body>
