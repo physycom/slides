@@ -75,5 +75,8 @@ vars/templates/*_template.json
 # Python
 */__pycache__/
 
+# Docker
+docker/.ssh/
+
 # Debug
 work_*/
