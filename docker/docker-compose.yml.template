@@ -1,7 +1,7 @@
 # build image with with
 # > docker-compose build
 # create and run container with
-# > docker-compose up -d fastcron_ws
+# > docker-compose up -d slides_ws
 
 version: '3.4'
 
