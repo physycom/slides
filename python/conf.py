@@ -78,9 +78,9 @@ class conf:
 
     # attractions
     attr = self.dbk.get_attractions(citytag)
-    if len(attr) > 6:
-      log_print('*********** Temporary lowering of attractions number', self.logger)
-      attr = { k : v for k, v in list(attr.items())[:6] }
+    #if len(attr) > 6:
+    #  log_print('*********** Temporary lowering of attractions number', self.logger)
+    #  attr = { k : v for k, v in list(attr.items())[:6] }
     conf['attractions'] = attr
 
     # blank timetable
