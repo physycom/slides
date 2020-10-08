@@ -195,11 +195,11 @@ class db_kml:
 
     attr = {
       k.replace(' ', '_') : {
-          'lat' : v['lat'],
-          'lon' : v['lon'],
-          'weight' : 0.5,
-          'timecap' : [ 10000 ],
-          'visit_time' : 3600
+        'lat' : v['lat'],
+        'lon' : v['lon'],
+        'weight' : 0.5,
+        'timecap' : [ 10000 ],
+        'visit_time' : 1800
       }
       for k,v in locations.items() if v['role'] == 'attraction'
     }

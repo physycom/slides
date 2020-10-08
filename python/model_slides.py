@@ -227,6 +227,53 @@ class model_slides:
     mask = (df.index >= start) & (df.index < stop)
     return df[mask]
 
+  def locals(self, start, stop, city):
+    ti = datetime.strptime(start.strftime('%Y-%m-%d 00:00:00'), self.date_format)
+    tf = (ti + timedelta(hours=24, seconds=-self.rates_dt) )
+    fullt = pd.date_range(ti, tf, freq='{}s'.format(self.rates_dt))
+
+    df = pd.DataFrame(index=fullt)
+    tt = []
+    for t in df.index:
+      if t < datetime.strptime(ti.strftime('%Y-%m-%d 01:00:00'), self.date_format):
+        v = 0.
+      elif t < datetime.strptime(ti.strftime('%Y-%m-%d 04:00:00'), self.date_format):
+        v = 0.3
+      elif t < datetime.strptime(ti.strftime('%Y-%m-%d 07:00:00'), self.date_format):
+        v = 0.5
+      elif t < datetime.strptime(ti.strftime('%Y-%m-%d 11:00:00'), self.date_format):
+        v = 0.7
+      elif t < datetime.strptime(ti.strftime('%Y-%m-%d 15:00:00'), self.date_format):
+        v = 1.0
+      elif t < datetime.strptime(ti.strftime('%Y-%m-%d 18:00:00'), self.date_format):
+        v = 0.8
+      elif t < datetime.strptime(ti.strftime('%Y-%m-%d 20:00:00'), self.date_format):
+        v = 0.6
+      elif t < datetime.strptime(ti.strftime('%Y-%m-%d 22:00:00'), self.date_format):
+        v = 0.4
+      else:
+        v = 0.
+      tt.append(v)
+    df['tot'] = tt
+    tt = np.array(tt)
+
+    runave_size = 2 * 60 * 60 // self.rates_dt # running average idx interval from time in seconds
+    kern = box_centered_kernel(len(tt), runave_size)
+    conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft(tt) * np.fft.fft(kern) )))
+    df['tot-smooth'] = conv
+
+    max_pop = self.params[city]['population']
+    min_pop = 0.1*max_pop
+    norm = (conv - conv.min()) / (conv.max() - conv.min())
+    #print(norm.max(), norm.min())
+    df['tot-smooth'] = (max_pop - min_pop) * norm + min_pop
+    #print(df['tot-smooth'].min(), df['tot-smooth'].max())
+
+    df = df[['tot-smooth']].rename({'tot-smooth':'data'})
+    df = df[ (df.index >= start) & (df.index < stop) ]
+    #print(df)
+    return df
+
 if __name__ == '__main__':
   import argparse
   import matplotlib.pyplot as plt

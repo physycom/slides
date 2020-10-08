@@ -144,7 +144,7 @@ class conf:
       tt.update(rates)
 
       beta_bp = 0.8
-      speed_mps = 0.7
+      speed_mps = 1.0
 
       sources.update({
         tag + '_IN' : {
@@ -163,35 +163,34 @@ class conf:
         }
       })
 
-
-    """
     # control
-    df = self.ms.rescaled_data(start, stop, max = 1000)
+    df = srcdata.copy()
+    df = self.ms.locals(start, stop, citytag)
     #print(df)
     rates = { t.replace(
         year=mid_start.year,
         month=mid_start.month,
         day=mid_start.day
       ) : v
-      for t,v in zip(df.index, df['data'].values)
+      for t,v in zip(df.index, df.values)
     }
     tt = ttrates.copy()
     tt.update(rates)
 
     locals = {
-      'is_control'    : True,
-      'creation_dt'   : self.creation_dt ,
+      'source_type'  : 'ctrl',
+      'creation_dt'   : self.creation_dt,
       'creation_rate' : [ int(v) for v in tt.values() ],
       'pawns' : {
         'locals' : {
-          'beta_bp_miss'   : 0.5,
+          'beta_bp_miss'   : 0.9,
           'start_node_lid' : -1,
           'dest'           : -1
         }
       }
     }
+    #print(locals)
     sources['LOCALS'] = locals
-    """
 
     conf['sources'] = sources
 

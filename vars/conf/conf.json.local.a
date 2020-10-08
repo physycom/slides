@@ -28,7 +28,7 @@
         "daily_tourist" : 10000
       },
       "ferrara": {
-        "population"    : 3000,
+        "population"    : 7000,
         "daily_tourist" : 15000,
 
         "mongo" : {
