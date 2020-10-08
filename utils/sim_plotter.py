@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
-def sim_plot(popin=None, confin=None, outpng=''):
+def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
   # working mode
   if popin == None and confin != None:
     with open(confin) as cin:
@@ -29,9 +29,11 @@ def sim_plot(popin=None, confin=None, outpng=''):
         #print(k, len(rates))
         df[k] = rates
     #print(df)
+    ptitle = f'Source timetables, city {city}'
   elif popin != None and confin == None:
     df = pd.read_csv(popin, delimiter=';', parse_dates=['datetime'], index_col='datetime')
     df = df.drop(columns=['timestamp', 'transport', 'awaiting_transport'])
+    ptitle = f'Population, city {city}'
     #print(df)
   else:
     raise Exception(f'[sim_plotter] invalid mode popin {popin} csvin {confin}')
@@ -77,11 +79,12 @@ def sim_plot(popin=None, confin=None, outpng=''):
   axes.legend()
   plt.xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
   plt.ylabel('Counter')
-  plt.title('Population')
-  plt.tight_layout()
   plt.grid(which='major', linestyle='-')
   plt.grid(which='minor', linestyle='--')
 
+  plt.tight_layout()
+  fig.subplots_adjust(top=0.9)
+  plt.suptitle(ptitle, y=0.98)
   if outpng == '':
     plt.show()
   else:

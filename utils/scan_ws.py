@@ -12,6 +12,7 @@ try:
   sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'utils'))
   from sim_plotter import sim_plot
   from sim_stats import sim_stats
+  from sim_wroutes import sim_wroutes
 except Exception as e:
   raise Exception('[scan_ws] library load failed : {}'.format(e))
 
@@ -100,21 +101,28 @@ if __name__ == '__main__':
               conf_clone = f'{wdir}/{sid:>04s}_conf.json'
               shutil.copyfile(conf, conf_clone)
               outpng = f'{wdir}/{sid:>04s}_conf.png'
-              sim_plot(confin=conf, outpng=outpng)
+              sim_plot(confin=conf, outpng=outpng, city=city)
 
               sd = datetime.strptime(s['start_date'], date_format).strftime(short_format)
               popf = f'{wsdir}/r_{city}_population_{sd}.csv'
               popf_clone = f'{wdir}/{sid:>04s}_pop.csv'
               shutil.copyfile(popf, popf_clone)
               outpng = f'{wdir}/{sid:>04s}_pop.png'
-              sim_plot(popin=popf, outpng=outpng)
+              sim_plot(popin=popf, outpng=outpng, city=city)
 
               statsf = f'{wsdir}/r_{city}_pstats_{sd}.csv'
               statsf_clone = f'{wdir}/{sid:>04s}_pstats.csv'
               shutil.copyfile(statsf, statsf_clone)
               outbase = f'{wdir}/{sid:>04s}_pstats'
-              sim_stats(statsin=statsf, outbase=outbase)
-          except:
+              sim_stats(statsin=statsf, outbase=outbase, city=city)
+
+              wroutef = f'{wsdir}/r_{city}_wrstats_{sd}.csv'
+              wroutef_clone = f'{wdir}/{sid:>04s}_wrstats.csv'
+              shutil.copyfile(wroutef, wroutef_clone)
+              outbase = f'{wdir}/{sid:>04s}_wrstats'
+              sim_wroutes(wrin=wroutef, outbase=outbase, city=city)
+          except Exception as e:
+            print(f'Problems in plot : {e}')
             pass
 
           if res.status_code != 200:

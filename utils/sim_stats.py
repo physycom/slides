@@ -10,7 +10,7 @@ from dateutil import tz
 HERE = tz.tzlocal()
 UTC = tz.gettz('UTC')
 
-def sim_stats(statsin, outbase=''):
+def sim_stats(statsin, outbase='', city='N/A'):
   df = pd.read_csv(statsin, delimiter=';', parse_dates=['event_time'])
   #print(df)
 
@@ -72,7 +72,7 @@ def sim_stats(statsin, outbase=''):
 
   plt.tight_layout()
   fig.subplots_adjust(top=0.9)
-  plt.suptitle(f'Attractions occupacy', y=0.98)
+  plt.suptitle(f'Attractions occupacy, city {city}', y=0.98)
   if outbase == '':
     plt.show()
   else:
@@ -111,8 +111,8 @@ def sim_stats(statsin, outbase=''):
     axes.legend()
 
   axes = axs[-1]
-  lt = dfout['totdist'].values
-  binwidth = 250 # meters
+  lt = dfout['totdist'].astype(int).values
+  binwidth = 500 # meters
   bins = range(0, max(lt) + binwidth, binwidth)
   lt_cnt, lt_bins = np.histogram(lt, bins=bins)
   lt_bins = np.asarray(lt_bins[:-1])
@@ -121,10 +121,10 @@ def sim_stats(statsin, outbase=''):
 
   axes.set_xticks(lt_bins, minor=True)
   if len(lt_bins) > 25:
-    lt_bins = lt_bins[::5]
+    lt_bins = lt_bins[::int(len(lt_bins)/25)]
   axes.set_xticks(lt_bins)
   axes.set_xticklabels([ f'{d/1000:.2f}' for d in lt_bins ], rotation=45)
-  axes.set_xlabel(f'Trip distance [m]')
+  axes.set_xlabel(f'Trip distance [km]')
   axes.set_ylabel('Counter')
   #plt.tight_layout()
   axes.grid(which='major', linestyle='-')
@@ -134,13 +134,12 @@ def sim_stats(statsin, outbase=''):
 
   plt.tight_layout()
   fig.subplots_adjust(top=0.9)
-  plt.suptitle(f'Pawn stats\nTotal pawn created {tot_pawn}, dead {tot_pawn_dead}, alive {tot_pawn_alive}, check {tot_check}', y=0.98)
+  plt.suptitle(f'Pawn stats, city {city}\nTotal pawn created {tot_pawn}, dead {tot_pawn_dead}, alive {tot_pawn_alive}, check {tot_check}', y=0.98)
   if outbase == '':
     plt.show()
   else:
     plt.savefig(f'{outbase}_hist.png')
   plt.close()
-
 
 if __name__ == '__main__':
   import argparse
