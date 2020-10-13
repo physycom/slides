@@ -65,79 +65,123 @@ class db_kml:
     locations = {}
     if citytag == 'bari':
       for pm in folder.Placemark:
-        role = 'none'
-        if re.match('.*limite.*', pm.name.text) != None: continue
-        point = [p for p in pm.getchildren() if p.tag.endswith('Point')]
-        if point:
-          #print(pm.name, pm.description)
-          desc = pm.description.text
-          if re.match('.*poi A.*', desc) != None: role = 'attraction'
-          elif re.match('.*accesso.*', desc) != None: role = 'source'
-          else: continue
-          lon, lat, z = point[0].coordinates.text.split(',')
-          locations[pm.name.text] = {
-            'type' : 'Point',
-            'role' : role,
-            'lat' : float(lat),
-            'lon' : float(lon)
-          }
+        if pm.ExtendedData != None:
+          name = pm.name.text.strip()
+          if re.match('.*limite.*', pm.name.text) != None: continue
+
+          # parse metadata
+          for data in pm.ExtendedData.getchildren():
+            if data.attrib['name'] == 'descrizione':
+              description = data.value.text
+            elif data.attrib['name'] == 'weight':
+              weight = float(data.value.text)
+            elif data.attrib['name'] == 'visit_time [h]':
+              visit_t = int(float(data.value.text) * 3600)
+
+          role = 'none'
+          point = [p for p in pm.getchildren() if p.tag.endswith('Point')]
+          if point:
+            if re.match('.*poi A.*', description) != None: role = 'attraction'
+            elif re.match('.*accesso.*', description) != None: role = 'source'
+            else: continue
+            lon, lat, z = point[0].coordinates.text.split(',')
+            locations[pm.name.text] = {
+              'type'    : 'Point',
+              'role'    : role,
+              'lat'     : float(lat),
+              'lon'     : float(lon),
+              'weight'  : weight,
+              'visit_t' : visit_t
+            }
     elif citytag == 'dubrovnik':
       for pm in folder.Placemark:
         name = pm.name.text.strip()
         description = pm.description.text.strip()
         role = 'none'
-        if re.match('.*[cC]amera [0-9].*', name) != None: role = 'source'
-        if re.match('.*[dD]egree A.*', description) != None: role = 'attraction'
+        # parse metadata
+        for data in pm.ExtendedData.getchildren():
+          if data.attrib['name'] == 'descrizione':
+            description = data.value.text
+          elif data.attrib['name'] == 'weight':
+            weight = float(data.value.text)
+          elif data.attrib['name'] == 'visit_time [h]':
+            visit_t = int(float(data.value.text) * 3600)
 
         point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
         if point:
+          if re.match('.*[cC]amera [0-9].*', name) != None: role = 'source'
+          if re.match('.*[dD]egree A.*', description) != None: role = 'attraction'
+
           #print(name, '---', description)
           lon, lat, z = point[0].coordinates.text.split(',')
           locations[name] = {
-            'type' : 'Point',
-            'role' : role,
-            'lat' : float(lat),
-            'lon' : float(lon)
+            'type'    : 'Point',
+            'role'    : role,
+            'lat'     : float(lat),
+            'lon'     : float(lon),
+            'weight'  : weight,
+            'visit_t' : visit_t
           }
     elif citytag == 'ferrara':
       for pm in folder.Placemark:
-        name = pm.name.text.strip()
-        point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
-        description = [ p for p in pm.getchildren() if p.tag.endswith('description') ]
+        if pm.ExtendedData != None:
+          name = pm.name.text.strip()
 
-        if point and description:
-          lon, lat, z = point[0].coordinates.text.split(',')
-          description = pm.description.text.strip()
-          role = 'none'
-          if re.match('.*ingresso.*uscita.*', description) != None: role = 'source'
-          if re.match('.*destinazione.*', description) != None: role = 'attraction'
-          #print(name, '---', description)
-          locations[name] = {
-            'type' : 'Point',
-            'role' : role,
-            'lat' : float(lat),
-            'lon' : float(lon)
-          }
+          # parse metadata
+          for data in pm.ExtendedData.getchildren():
+            if data.attrib['name'] == 'description':
+              description = data.value.text
+            elif data.attrib['name'] == 'weight':
+              weight = float(data.value.text)
+            elif data.attrib['name'] == 'visit_time [h]':
+              visit_t = int(float(data.value.text) * 3600)
+
+          point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
+
+          # create location object
+          if point and description:
+            lon, lat, z = point[0].coordinates.text.split(',')
+            role = 'none'
+            if re.match('.*ingresso.*uscita.*', description) != None: role = 'source'
+            if re.match('.*destinazione.*', description) != None: role = 'attraction'
+            #print(name, '---', description)
+            locations[name] = {
+              'type'    : 'Point',
+              'role'    : role,
+              'lat'     : float(lat),
+              'lon'     : float(lon),
+              'weight'  : weight,
+              'visit_t' : visit_t
+            }
     elif citytag == 'sybenik':
       for pm in folder.Placemark:
-        name = pm.name.text.strip()
-        point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
-        if point:# and description:
-          role = 'none'
-          if re.match('.*Camera.*', name) != None: role = 'source'
-          if re.match('.* - A.*', name) != None: role = 'attraction'
+        if pm.ExtendedData != None:
+          name = pm.name.text.strip()
 
-          if re.match('.*Port.*', name) != None: role = 'source'
-          if re.match('.*City [eE]ntrance.*', name) != None: role = 'source'
-          if re.match('.*Parking.*', name) != None: role = 'source'
+          # parse metadata
+          for data in pm.ExtendedData.getchildren():
+            if data.attrib['name'] == 'descrizione':
+              description = data.value.text
+            elif data.attrib['name'] == 'weight':
+              weight = float(data.value.text)
+            elif data.attrib['name'] == 'visit_time [h]':
+              visit_t = int(float(data.value.text) * 3600)
 
-          lon, lat, z = point[0].coordinates.text.split(',')
-          locations[name.replace('- A', '').strip()] = {
-            'type' : 'Point',
-            'role' : role,
-            'lat' : float(lat),
-            'lon' : float(lon)
-          }
+          point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
+          if point:
+            role = 'none'
+            if re.match('.*source.*', description) != None: role = 'source'
+            if re.match('.*A.*', name) != None: role = 'attraction'
+
+            lon, lat, z = point[0].coordinates.text.split(',')
+            locations[name.replace('- A', '').strip()] = {
+              'type'    : 'Point',
+              'role'    : role,
+              'lat'     : float(lat),
+              'lon'     : float(lon),
+              'weight'  : weight,
+              'visit_t' : visit_t
+            }
 
       #####################################################
       explore_kmeans = False
@@ -173,33 +217,44 @@ class db_kml:
 
     elif citytag == 'venezia':
       for pm in folder.Placemark:
-        name = pm.name.text.strip()
-        point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
+        if pm.ExtendedData != None:
+          name = pm.name.text.strip()
 
-        if point:
-          description = pm.ExtendedData.Data[2].value.text
-          role = 'none'
-          if re.match('.*poi A.*', description) != None: role = 'attraction'
-          if re.match('.*accesso.*', description) != None: role = 'source'
+          # parse metadata
+          for data in pm.ExtendedData.getchildren():
+            if data.attrib['name'] == 'description':
+              description = data.value.text
+            elif data.attrib['name'] == 'weight':
+              weight = float(data.value.text)
+            elif data.attrib['name'] == 'visit_time [h]':
+              visit_t = int(float(data.value.text) * 3600)
 
-          #print(name, '---', description)
-          lon, lat, z = point[0].coordinates.text.split(',')
-          locations[name] = {
-            'type' : 'Point',
-            'role' : role,
-            'lat' : float(lat),
-            'lon' : float(lon)
-          }
+          point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
 
+          # create location object
+          if point and description:
+            lon, lat, z = point[0].coordinates.text.split(',')
+            role = 'none'
+            if re.match('.*poi.*', description) != None: role = 'attraction'
+            if re.match('.*accesso.*', description) != None: role = 'source'
+            #print(name, '---', description)
+            locations[name] = {
+              'type'    : 'Point',
+              'role'    : role,
+              'lat'     : float(lat),
+              'lon'     : float(lon),
+              'weight'  : weight,
+              'visit_t' : visit_t
+            }
     log_print('Parsed {} locations for {}'.format(len(locations), citytag), self.logger)
 
     attr = {
       k.replace(' ', '_') : {
         'lat' : v['lat'],
         'lon' : v['lon'],
-        'weight' : 0.5,
+        'weight' : v['weight'], #0.5, #r.uniform(0, 1),
         'timecap' : [ 10000 ],
-        'visit_time' : 1800
+        'visit_time' : v['visit_t'] #1800
       }
       for k,v in locations.items() if v['role'] == 'attraction'
     }
@@ -207,13 +262,13 @@ class db_kml:
       k.replace(' ', '_') : {
         'lat'    : v['lat'],
         'lon'    : v['lon'],
-        'weight' : 1 #r.uniform(1, 2)
+        'weight' : v['weight'], #1 #r.uniform(1, 2)
       }
       for k,v in locations.items() if v['role'] == 'source'
     }
-    tot_w = sum([ v['weight'] for v in src.values() ])
-    for k in src:
-      src[k]['weight'] /= tot_w
+    #tot_w = sum([ v['weight'] for v in src.values() ])
+    #for k in src:
+    #  src[k]['weight'] /= tot_w
     log_print('Created {} attractions {} sources'.format(len(attr), len(src)), self.logger)
 
     self.cities[citytag]['attractions'] = attr
@@ -225,7 +280,7 @@ class db_kml:
     if 'mid' not in city: raise Exception('mid not avalaible for {}'.format(citytag))
 
     kmlfile = self.wdir + '/attractions_{}.kml'.format(citytag)
-    if not os.path.exists(kmlfile):
+    if not os.path.exists(kmlfile) or True:
       try:
         log_print('Retrieving kml data for {}'.format(citytag), self.logger)
         url = 'https://mapsengine.google.com/map/kml?mid={}'.format(city['mid'])
