@@ -144,7 +144,7 @@ class conf:
       }
       tt.update(rates)
 
-      beta_bp = 0.8
+      beta_bp = 0.2
       speed_mps = 1.0
 
       sources.update({
@@ -184,7 +184,7 @@ class conf:
       'creation_rate' : [ int(v) for v in tt.values() ],
       'pawns' : {
         'locals' : {
-          'beta_bp_miss'   : 0.9,
+          'beta_bp_miss'   : 0, #1, #0.99,
           'start_node_lid' : -1,
           'dest'           : -1
         }

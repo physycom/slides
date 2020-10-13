@@ -87,22 +87,54 @@ def sim_stats(statsin, outbase='', city='N/A'):
   fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(12, 8))
   axs = axs.flatten()
 
-  for i, c in enumerate(['triptime', 'idletime', 'lifetime']):
-    axes = axs[i]
-    lt = dfout[c].values
-    binwidth = 600 # sec
-    bins = range(0, max(lt) + binwidth, binwidth)
-    lt_cnt, lt_bins = np.histogram(lt, bins=bins)
-    lt_bins = np.asarray(lt_bins[:-1])
-    binw = binwidth / 2
-    axes.bar(lt_bins, lt_cnt, width=binw, label=c)
+  grp = dfout.groupby('tag')
+  ptype_num = len(grp)
+  for n, (ptype, dft) in enumerate(grp):
+    print(dft)
+    for i, c in enumerate(['triptime', 'idletime', 'lifetime']):
+      axes = axs[i]
 
-    axes.set_xticks(lt_bins, minor=True)
-    if len(lt_bins) > 25:
-      lt_bins = lt_bins[::4]
-    axes.set_xticks(lt_bins)
-    axes.set_xticklabels([ timedelta(seconds=int(s)) for s in lt_bins ], rotation=45)
-    axes.set_xlabel(f'Time [HH:MM:SS]')
+      binwidth = 900 # sec
+      maxbin = dfout[c].max() #12 * 3600
+      vals = dft[c].values
+      hbins = range(0, maxbin + binwidth, binwidth)
+      mean = vals.mean()
+      cnt, bins = np.histogram(dft[c].values, bins=hbins)
+      bins = bins[:-1]
+      binw = binwidth / (ptype_num + 1)
+      axes.bar(bins + (n + 0.5)*binw, cnt, width=binw, label=f'{ptype} {cnt.sum()}')
+      axes.set_yscale('log')
+      axes.set_xticks(bins, minor=True)
+      if len(bins) > 25:
+        bins = bins[::4]
+      axes.set_xticks(bins)
+      axes.set_xticklabels([ timedelta(seconds=int(s)) for s in bins ], rotation=45)
+      axes.set_xlabel(f'Time [HH:MM:SS]')
+      axes.set_ylabel('Counter')
+      axes.set_title(f'{c}, mean = {timedelta(seconds=mean)}')
+      axes.grid(which='major', linestyle='-')
+      axes.grid(which='minor', linestyle='--')
+      axes.set_axisbelow(True)
+      axes.legend()
+
+    axes = axs[-1]
+    maxbin = dfout['totdist'].max().astype('int')
+    lt = dft['totdist'].astype(int).values
+    binwidth = 500 # meters
+    hbins = range(0, maxbin + binwidth, binwidth)
+    cnt, bins = np.histogram(lt, bins=hbins)
+    bins = bins[:-1]
+    binw = binwidth / (ptype_num + 1)
+    axes.bar(bins + (n + 0.5)*binw, cnt, width=binw, label=f'{ptype} {cnt.sum()}')
+
+    axes.set_yscale('log')
+    axes.set_xticks(bins, minor=True)
+    max_tick = 20
+    if len(bins) > max_tick:
+      bins = bins[::int(len(bins)/max_tick)]
+    axes.set_xticks(bins)
+    axes.set_xticklabels([ f'{d/1000:.2f}' for d in bins ], rotation=45)
+    axes.set_xlabel(f'Trip distance [km]')
     axes.set_ylabel('Counter')
     #plt.tight_layout()
     axes.grid(which='major', linestyle='-')
@@ -110,31 +142,9 @@ def sim_stats(statsin, outbase='', city='N/A'):
     axes.set_axisbelow(True)
     axes.legend()
 
-  axes = axs[-1]
-  lt = dfout['totdist'].astype(int).values
-  binwidth = 500 # meters
-  bins = range(0, max(lt) + binwidth, binwidth)
-  lt_cnt, lt_bins = np.histogram(lt, bins=bins)
-  lt_bins = np.asarray(lt_bins[:-1])
-  binw = binwidth / 2
-  axes.bar(lt_bins, lt_cnt, width=binw, label='distance', color='red')
-
-  axes.set_xticks(lt_bins, minor=True)
-  if len(lt_bins) > 25:
-    lt_bins = lt_bins[::int(len(lt_bins)/25)]
-  axes.set_xticks(lt_bins)
-  axes.set_xticklabels([ f'{d/1000:.2f}' for d in lt_bins ], rotation=45)
-  axes.set_xlabel(f'Trip distance [km]')
-  axes.set_ylabel('Counter')
-  #plt.tight_layout()
-  axes.grid(which='major', linestyle='-')
-  axes.grid(which='minor', linestyle='--')
-  axes.set_axisbelow(True)
-  axes.legend()
-
   plt.tight_layout()
   fig.subplots_adjust(top=0.9)
-  plt.suptitle(f'Pawn stats, city {city}\nTotal pawn created {tot_pawn}, dead {tot_pawn_dead}, alive {tot_pawn_alive}, check {tot_check}', y=0.98)
+  plt.suptitle(f'Pawn stats, city {city}, total created {tot_pawn}, dead {tot_pawn_dead}, alive {tot_pawn_alive}', y=0.98)
   if outbase == '':
     plt.show()
   else:
