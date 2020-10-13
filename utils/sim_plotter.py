@@ -68,19 +68,51 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
   major_lbl = major_lbl[::min_us][::maj_us]
 
   # plot
-  fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-  axes.set_xticks(minor_ticks, minor=True)
-  axes.set_xticks(major_ticks)
-  axes.set_xticklabels(major_lbl, rotation=45)
+  if 'LOCALS' in df.columns:
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(12, 8))
+    axs = axs.flatten()
 
-  for c in df.columns:
-    axes.plot(ts, df[c], '-o', label=c)
+    axes = axs[0]
+    axes.set_xticks(minor_ticks, minor=True)
+    axes.set_xticks(major_ticks)
+    axes.set_xticklabels(major_lbl, rotation=45)
 
-  axes.legend()
-  plt.xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
-  plt.ylabel('Counter')
-  plt.grid(which='major', linestyle='-')
-  plt.grid(which='minor', linestyle='--')
+    for c in df.columns:
+      if c != 'LOCALS':
+        axes.plot(ts, df[c], '-o', label=c)
+
+    axes.legend()
+    axes.set_xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
+    axes.set_ylabel('Counter')
+    axes.grid(which='major', linestyle='-')
+    axes.grid(which='minor', linestyle='--')
+
+    axes = axs[1]
+    axes.set_xticks(minor_ticks, minor=True)
+    axes.set_xticks(major_ticks)
+    axes.set_xticklabels(major_lbl, rotation=45)
+
+    axes.plot(ts, df['LOCALS'], '-o', label='LOCALS')
+
+    axes.legend()
+    axes.set_xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
+    axes.set_ylabel('Counter')
+    axes.grid(which='major', linestyle='-')
+    axes.grid(which='minor', linestyle='--')
+  else:
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
+    axes.set_xticks(minor_ticks, minor=True)
+    axes.set_xticks(major_ticks)
+    axes.set_xticklabels(major_lbl, rotation=45)
+
+    for c in df.columns:
+      axes.plot(ts, df[c], '-o', label=c)
+
+    axes.legend()
+    axes.set_xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
+    axes.set_ylabel('Counter')
+    axes.grid(which='major', linestyle='-')
+    axes.grid(which='minor', linestyle='--')
 
   plt.tight_layout()
   fig.subplots_adjust(top=0.9)
