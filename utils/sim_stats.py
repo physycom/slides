@@ -90,7 +90,7 @@ def sim_stats(statsin, outbase='', city='N/A'):
   grp = dfout.groupby('tag')
   ptype_num = len(grp)
   for n, (ptype, dft) in enumerate(grp):
-    print(dft)
+    #print(dft)
     for i, c in enumerate(['triptime', 'idletime', 'lifetime']):
       axes = axs[i]
 
@@ -99,18 +99,18 @@ def sim_stats(statsin, outbase='', city='N/A'):
       vals = dft[c].values
       hbins = range(0, maxbin + binwidth, binwidth)
       mean = vals.mean()
-      cnt, bins = np.histogram(dft[c].values, bins=hbins)
+      cnt, bins = np.histogram(dft[c].values, bins=hbins, density=True)
       bins = bins[:-1]
       binw = binwidth / (ptype_num + 1)
-      axes.bar(bins + (n + 0.5)*binw, cnt, width=binw, label=f'{ptype} {cnt.sum()}')
-      axes.set_yscale('log')
+      axes.bar(bins + (n + 0.5)*binw, cnt, width=binw, label=f'{ptype} {len(dft[c])}')
+      #axes.set_yscale('log')
       axes.set_xticks(bins, minor=True)
       if len(bins) > 25:
         bins = bins[::4]
       axes.set_xticks(bins)
       axes.set_xticklabels([ timedelta(seconds=int(s)) for s in bins ], rotation=45)
       axes.set_xlabel(f'Time [HH:MM:SS]')
-      axes.set_ylabel('Counter')
+      axes.set_ylabel('Density')
       axes.set_title(f'{c}, mean = {timedelta(seconds=mean)}')
       axes.grid(which='major', linestyle='-')
       axes.grid(which='minor', linestyle='--')
@@ -120,14 +120,15 @@ def sim_stats(statsin, outbase='', city='N/A'):
     axes = axs[-1]
     maxbin = dfout['totdist'].max().astype('int')
     lt = dft['totdist'].astype(int).values
+    mean = dft['totdist'].mean()
     binwidth = 500 # meters
     hbins = range(0, maxbin + binwidth, binwidth)
-    cnt, bins = np.histogram(lt, bins=hbins)
+    cnt, bins = np.histogram(lt, bins=hbins, density=True)
     bins = bins[:-1]
     binw = binwidth / (ptype_num + 1)
-    axes.bar(bins + (n + 0.5)*binw, cnt, width=binw, label=f'{ptype} {cnt.sum()}')
+    axes.bar(bins + (n + 0.5)*binw, cnt, width=binw, label=f'{ptype} {len(lt)}')
 
-    axes.set_yscale('log')
+    #axes.set_yscale('log')
     axes.set_xticks(bins, minor=True)
     max_tick = 20
     if len(bins) > max_tick:
@@ -135,7 +136,8 @@ def sim_stats(statsin, outbase='', city='N/A'):
     axes.set_xticks(bins)
     axes.set_xticklabels([ f'{d/1000:.2f}' for d in bins ], rotation=45)
     axes.set_xlabel(f'Trip distance [km]')
-    axes.set_ylabel('Counter')
+    axes.set_ylabel('Density')
+    axes.set_title(f'covered distance, mean = {mean/1000:.2f}')
     #plt.tight_layout()
     axes.grid(which='major', linestyle='-')
     axes.grid(which='minor', linestyle='--')
