@@ -22,8 +22,9 @@ WORKDIR /root/Code
 RUN git config --global user.name "slidesmap" && git config --global user.email slidesmap@gmail.com
 RUN git clone git@github.com:physycom/sysconfig.git && git clone git@github.com:pybind/pybind11.git
 
-RUN echo "v1.0.2" > /slides_version
+ENV SLIDES_VERSION "v2.0.0"
 RUN \
+  echo ${SLIDES_VERSION} > /slides_version && \
   git clone git@github.com:physycom/slides.git && \
   cd slides && \
   git submodule update --init --recursive && \

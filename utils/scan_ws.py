@@ -85,13 +85,40 @@ if __name__ == '__main__':
   if args.scan:
     for url in url_list:
       for i, (sid, s) in enumerate(schedule.items()):
+        # authentication
+        user = config['user']
+        pwd = config['pwd']
+        res = post(
+          f'{url}/login',
+          headers={
+            "accept" : "application/json",
+            "Content-Type" : "application/x-www-form-urlencoded"
+          },
+          data={
+            'username' : user,
+            'password' : pwd
+          },
+          timeout=180
+        )
+        token = res.json()['access_token']
 
+        # data request
         tsim = datetime.now()
         if mode == 'sim':
           city = s['city']
           cityurl = f'{url}/sim?citytag={city}'
           print(f'Requesting SIM for {city} with params {s}')
-          res = post(cityurl, data=json.dumps(s), timeout=180)
+
+          res = post(
+            cityurl,
+            headers={
+              'accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': f'Bearer {token}'
+            },
+            data=json.dumps(s),
+            timeout=180
+          )
           outname = f'{sid:>04s}_response.json'
 
           # make plot (only localhost scan)
