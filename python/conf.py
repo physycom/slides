@@ -179,7 +179,7 @@ class conf:
     tt.update(rates)
 
     locals = {
-      'source_type'  : 'ctrl',
+      'source_type'   : 'ctrl',
       'creation_dt'   : self.creation_dt,
       'creation_rate' : [ int(v) for v in tt.values() ],
       'pawns' : {

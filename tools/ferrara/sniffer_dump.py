@@ -40,17 +40,18 @@ if __name__ == '__main__':
         authSource=    config['db'],
         authMechanism= config['aut']
       )
+      table = config['table']
       print(f'Authentication ok')
 
       if args.dev == 'both':
-        cursor = client['symfony'].FerraraPma.find({
+        cursor = client['symfony'][table].find({
           'date_time' : {
             '$gte' : start_date,
             '$lt'  : stop_date
           }
         })
       else:
-        cursor = client['symfony'].FerraraPma.find({
+        cursor = client['symfony'][table].find({
           'date_time' : {
             '$gte' : start_date,
             '$lt'  : stop_date

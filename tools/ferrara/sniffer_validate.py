@@ -22,16 +22,22 @@ if __name__ == '__main__':
   freq = f'{args.dt}s'
   if args.range == '':
     tok = args.input[:args.input.rfind('.')].split('_')
-    start = datetime.strptime(tok[-2], dt_fmt)
-    stop = datetime.strptime(tok[-1], dt_fmt)
+    try:
+      start = datetime.strptime(tok[-2], dt_fmt)
+      stop = datetime.strptime(tok[-1], dt_fmt)
+    except:
+      start = datetime.strptime(tok[-3], dt_fmt)
+      stop = datetime.strptime(tok[-2], dt_fmt)
   else:
     start = datetime.strptime(args.range.split('|')[0], dt_fmt)
     stop = datetime.strptime(args.range.split('|')[1], dt_fmt)
+    print(f'Setting time range {start} {stop}')
   base = f'{base}_{start.strftime(dt_fmt)}_{stop.strftime(dt_fmt)}'
 
   # read raw data
   df = pd.read_csv(args.input, sep=';')
   df.date_time = pd.to_datetime(df.date_time)
+  df.date_time = df.date_time.dt.tz_localize(None)
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
   if 'kind' not in df.columns: df['kind'] = 'wifi'
   if '_id' not in df.columns: df['_id'] = 1
@@ -102,3 +108,4 @@ if __name__ == '__main__':
   else:
     ptype = 'bin' if args.bin else 'cmap'
     plt.savefig(f'{base}_{ptype}_vali_{freq}.png')
+  plt.close()

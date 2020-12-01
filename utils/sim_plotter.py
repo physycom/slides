@@ -22,14 +22,16 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
     fullt = pd.date_range(midn_start.strftime(datetime_format), (midn_start + timedelta(hours=24, seconds=-sampling)).strftime(datetime_format), freq='{}s'.format(sampling), tz='UTC')
     df = pd.DataFrame(index=fullt)
 
+    sources = {}
     if 'sources' in config:
       src = config['sources']
       for k,v in src.items():
         rates = v['creation_rate']
-        #print(k, len(rates))
-        df[k] = rates
+        print(k, len(rates))
+
     #print(df)
     ptitle = f'Source timetables, city {city}'
+    exit(1)
   elif popin != None and confin == None:
     df = pd.read_csv(popin, delimiter=';', parse_dates=['datetime'], index_col='datetime')
     df = df.drop(columns=['timestamp', 'transport', 'awaiting_transport'])
