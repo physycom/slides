@@ -5,3 +5,6 @@
 	path = minimocas
 	url = git@github.com:physycom/minimocas
 	branch = master
+[submodule "pvt"]
+	path = pvt
+	url = git@github.com:physycom/slides-pvt

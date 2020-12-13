@@ -4,6 +4,7 @@ import json
 import sys
 import os
 import numpy as np
+import pandas as pd
 from datetime import datetime, timedelta
 from dateutil import tz
 
@@ -49,8 +50,10 @@ class conf:
       self.wdir = config['work_dir']
       if not os.path.exists(self.wdir): os.mkdir(self.wdir)
 
-      self.ms = model_slides(config['model_data'])
+      config['model_data']['work_dir'] = f'{self.wdir}/m_data'
+      self.ms = model_slides(config['model_data'], self.logger)
 
+      config['kml_data']['work_dir'] = f'{self.wdir}/kml_data'
       self.dbk = db_kml(config['kml_data'], self.logger)
 
     except Exception as e:
@@ -75,8 +78,9 @@ class conf:
 
     # attractions
     attr = self.dbk.get_attractions(citytag)
-    if len(attr) > 6:
-      log_print('*********** Temporary lowering of attractions number', self.logger)
+    max_attr = 15
+    if len(attr) > max_attr:
+      log_print(f'*********** Lowering attractions number to {max_attr}', self.logger)
       attr = { k : v for k, v in list(attr.items())[:6] }
     conf['attractions'] = attr
 
@@ -85,31 +89,63 @@ class conf:
     ttrates = { t : 0 for t in [ mid_start + i*timedelta(seconds=self.rates_dt) for i in range(rates_per_day) ] }
     sources = {}
 
-    # tourist sources
+    # sources timetable df generation
     src_list = self.dbk.get_sources(citytag)
+    srcdata = pd.DataFrame()
     for tag, src in src_list.items():
       #print(tag, src)
-      data = self.ms.get_data(start, stop, citytag, tag)
-      #print('data ', data)
+      data = self.ms.full_table(start, stop, citytag, tag)
+      #print('data\n', data)
 
-      dtot = self.ms.params[citytag]['daily_t']
-      #print(dtot)
-      data = self.ms.rescale_data(start, stop, data, tot=dtot * src['weight'])
-      #print('rescaled ', data)
+      if len(srcdata) == 0:
+        srcdata = data
+      else:
+        srcdata = srcdata.join(data)
+    #print(srcdata)
+    #print(srcdata.sum())
 
+    # city-specific caveat
+    if citytag == 'ferrara':
+      snif_src = { src : None for src in src_list }
+      params = self.ms.mod_fe.station_map
+      snif_src.update({ src : snif for snif in params for src in params[snif] })
+      src_num = len(snif_src)
+      #print(snif_src)
+      norm_src = [ n for n, v in snif_src.items() if v == None ]
+      m0_num = len(norm_src)
+      #print(norm_src)
+      log_print(f'Caveat FE - src {src_num}, m0_src {m0_num}', self.logger)
+      norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
+      norm_wei /= ( norm_wei.sum() * src_num / m0_num )
+      #print(norm_wei)
+      for s, c in zip(norm_src, norm_wei):
+        srcdata[s] *= c
+    else:
+      for s in src_list:
+        srcdata[s] /= len(src_list)
+
+    # log totals for debug
+    for c, v in srcdata.sum().items():
+      log_print(f'Source {c} total pawn : {v:.2f}', self.logger)
+    log_print(f'Simulation total pawn ; {srcdata.sum().sum():.2f}', self.logger)
+
+    # cast dataframe to timetable json format
+    for tag in srcdata.columns:
+      data = srcdata[[tag]].copy()
+
+      # wrap around midnight
       tt = ttrates.copy()
       rates = { t.replace(
           year=mid_start.year,
           month=mid_start.month,
           day=mid_start.day
-        ) : v # change here for debug
-        #) : 100
-        for t, v in zip(data.index, data['data'].values)
+        ) : v
+        for t, v in zip(data.index, data[tag].values)
       }
       tt.update(rates)
 
-      beta_bp = 0.8
-      speed_mps = 0.7
+      beta_bp = 0.2
+      speed_mps = 1.0
 
       sources.update({
         tag + '_IN' : {
@@ -128,34 +164,34 @@ class conf:
         }
       })
 
-    """
     # control
-    df = self.ms.rescaled_data(start, stop, max = 1000)
+    df = srcdata.copy()
+    df = self.ms.locals(start, stop, citytag)
     #print(df)
     rates = { t.replace(
         year=mid_start.year,
         month=mid_start.month,
         day=mid_start.day
       ) : v
-      for t,v in zip(df.index, df['data'].values)
+      for t,v in zip(df.index, df.values)
     }
     tt = ttrates.copy()
     tt.update(rates)
 
     locals = {
-      'is_control'    : True,
-      'creation_dt'   : self.creation_dt ,
+      'source_type'   : 'ctrl',
+      'creation_dt'   : self.creation_dt,
       'creation_rate' : [ int(v) for v in tt.values() ],
       'pawns' : {
         'locals' : {
-          'beta_bp_miss'   : 0.5,
+          'beta_bp_miss'   : 0, #1, #0.99,
           'start_node_lid' : -1,
           'dest'           : -1
         }
       }
     }
+    #print(locals)
     sources['LOCALS'] = locals
-    """
 
     conf['sources'] = sources
 

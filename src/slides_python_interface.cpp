@@ -27,6 +27,12 @@ struct pysimulation
     }
   }
 
+  ~pysimulation()
+  {
+    delete c;
+    delete s;
+  }
+
   bool is_valid()
   {
     return valid;
@@ -48,6 +54,14 @@ struct pysimulation
     if (c != nullptr)
     {
       c->dump_poly_geojson(basename);
+    }
+  }
+
+  void dump_grid_geojson(const std::string &filename)
+  {
+    if (s != nullptr)
+    {
+      s->grid.dump_geojson(filename);
     }
   }
 
@@ -79,6 +93,7 @@ PYBIND11_MODULE(pysim, m)
     .def("run", &pysimulation::run)
     .def("poly_outfile", &pysimulation::poly_outfile)
     .def("dump_poly_geojson", &pysimulation::dump_poly_geojson)
+    .def("dump_grid_geojson", &pysimulation::dump_grid_geojson)
     .def("is_valid", &pysimulation::is_valid)
     .def("sim_info", &pysimulation::sim_info);
 }

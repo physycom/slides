@@ -1,10 +1,20 @@
 #! /usr/bin/env python3
 
 import os
+import sys
 import json
 import argparse
 from datetime import datetime, timedelta
 from requests import post, get
+import shutil
+
+try:
+  sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'utils'))
+  from sim_plotter import sim_plot
+  from sim_stats import sim_stats
+  from sim_wroutes import sim_wroutes
+except Exception as e:
+  raise Exception('[scan_ws] library load failed : {}'.format(e))
 
 if __name__ == '__main__':
   # parse cli and config
@@ -25,12 +35,13 @@ if __name__ == '__main__':
   start_date = config['start_date']
   stop_date  = config['stop_date']
   day_dt = config['day_dt']
-  sim_dt = config['sim_dt']
+  sim_dt = [ dtm * 60 for dtm in config['sim_dt_min'] ]
   sim_start_times = config['sim_start_times']
   url_list = config['url_list']
   cities = config['cities']
 
   date_format = '%Y-%m-%d %H:%M:%S'
+  short_format = '%y%m%d_%H%M%S'
   start = datetime.strptime(start_date, date_format)
   stop = datetime.strptime(stop_date, date_format)
 
@@ -60,34 +71,122 @@ if __name__ == '__main__':
     json.dump(schedule, sout, indent=2)
   print(f'Scheduled {len(schedule)} requests')
 
+  try:
+    with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf', 'conf.json')) as wscin:
+      wsc = json.load(wscin)
+    wsdir = wsc['work_dir']
+    print(f'Found local ws data in {wsdir}, pngs enabled.')
+    do_png = True
+  except Exception as e:
+    print(f'Unable to locate ws working dir, skipping pngs, err : {e}')
+    do_png = False
+
   citymap = {} # to avoid repetitions in geojson case
   if args.scan:
     for url in url_list:
       for i, (sid, s) in enumerate(schedule.items()):
+        # authentication
+        user = config['user']
+        pwd = config['pwd']
+        res = post(
+          f'{url}/login',
+          headers={
+            "accept" : "application/json",
+            "Content-Type" : "application/x-www-form-urlencoded"
+          },
+          data={
+            'username' : user,
+            'password' : pwd
+          },
+          timeout=180
+        )
+        token = res.json()['access_token']
 
+        # data request
         tsim = datetime.now()
         if mode == 'sim':
           city = s['city']
           cityurl = f'{url}/sim?citytag={city}'
           print(f'Requesting SIM for {city} with params {s}')
-          res = post(cityurl, data=json.dumps(s), timeout=180)
-          outname = f'response_{sid:>04s}.json'
+
+          res = post(
+            cityurl,
+            headers={
+              'accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': f'Bearer {token}'
+            },
+            data=json.dumps(s),
+            timeout=180
+          )
+          outname = f'{sid:>04s}_response.json'
+
+          # make plot (only localhost scan)
+          try:
+            if do_png:
+              conf = f'{wsdir}/wsconf_sim_{city}.json'
+              conf_clone = f'{wdir}/{sid:>04s}_conf.json'
+              shutil.copyfile(conf, conf_clone)
+              outpng = f'{wdir}/{sid:>04s}_conf.png'
+              sim_plot(confin=conf, outpng=outpng, city=city)
+
+              sd = datetime.strptime(s['start_date'], date_format).strftime(short_format)
+              popf = f'{wsdir}/r_{city}_population_{sd}.csv'
+              popf_clone = f'{wdir}/{sid:>04s}_pop.csv'
+              shutil.copyfile(popf, popf_clone)
+              outpng = f'{wdir}/{sid:>04s}_pop.png'
+              sim_plot(popin=popf, outpng=outpng, city=city)
+
+              statsf = f'{wsdir}/r_{city}_pstats_{sd}.csv'
+              statsf_clone = f'{wdir}/{sid:>04s}_pstats.csv'
+              shutil.copyfile(statsf, statsf_clone)
+              outbase = f'{wdir}/{sid:>04s}_pstats'
+              sim_stats(statsin=statsf, outbase=outbase, city=city)
+
+              wroutef = f'{wsdir}/r_{city}_wrstats_{sd}.csv'
+              wroutef_clone = f'{wdir}/{sid:>04s}_wrstats.csv'
+              shutil.copyfile(wroutef, wroutef_clone)
+              outbase = f'{wdir}/{sid:>04s}_wrstats'
+              sim_wroutes(wrin=wroutef, outbase=outbase, city=city)
+          except Exception as e:
+            print(f'Problems in plot : {e}')
+            pass
+
+          if res.status_code != 200:
+            print('request error : {}'.format(res.content))
+          else:
+            rjson = res.json()
+            with open(f'{wdir}/{outname}', 'w') as jout:
+              json.dump(rjson, jout, indent=2)
+
         elif mode == 'geo':
           city = s['city']
-          if city in citymap:
-            continue
+          if city in citymap: continue # to avoid repetitions in geojson case
           citymap[city] = 'ok'
-          cityurl = f'{url}/poly?citytag={city}'
-          print(f'Requesting GEOJSON data for {city} @{cityurl}')
-          res = get(cityurl, data=json.dumps(s), timeout=180)
-          outname = f'geojson_{city}.geojson'
 
-        if res.status_code != 200:
-          raise Exception('request error : {}'.format(res.content))
-        else:
-          rjson = res.json()
-          if mode == 'geo':
+          # get poly geojson
+          cityurl = f'{url}/poly?citytag={city}'
+          print(f'Requesting poly GEOJSON data for {city} @{cityurl}')
+          res = get(cityurl, timeout=180)
+          outname = f'{wdir}/{city}_poly.geojson'
+          if res.status_code != 200:
+            print('request error : {}'.format(res.content))
+          else:
+            rjson = res.json()
             rjson = rjson['geojson']
-          tsim = datetime.now() - tsim
-          with open(f'{wdir}/{outname}', 'w') as jout:
-            json.dump(rjson, jout, indent=2)
+            with open(outname, 'w') as jout:
+              json.dump(rjson, jout, indent=2)
+
+          # get grid geojson
+          cityurl = f'{url}/grid?citytag={city}'
+          print(f'Requesting grid GEOJSON data for {city} @{cityurl}')
+          res = get(cityurl, timeout=180)
+          outname = f'{wdir}/{city}_grid.geojson'
+
+          if res.status_code != 200:
+            print('request error : {}'.format(res.content))
+          else:
+            rjson = res.json()
+            rjson = rjson['geojson']
+            with open(outname, 'w') as jout:
+              json.dump(rjson, jout, indent=2)

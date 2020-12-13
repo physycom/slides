@@ -1,9 +1,11 @@
 {
   "file_pro"        : "$ENV{WORKSPACE}/slides/vars/cart/ferrara.pro",
   "file_pnt"        : "$ENV{WORKSPACE}/slides/vars/cart/ferrara.pnt",
+  "file_cnt"        : "$ENV{WORKSPACE}/slides/vars/extra/ferrara.fluxes",
 
   "enable_population" : true,
   "enable_netstate"   : true,
+  "enable_histo"      : true,
 
   "dt": 10,
   "sampling_dt": 60,

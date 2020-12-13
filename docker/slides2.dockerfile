@@ -8,6 +8,7 @@ RUN apt install cmake libboost-all-dev -y
 
 RUN python3 -m pip install jsonschema numpy pandas matplotlib
 RUN python3 -m pip install requests pykml pymongo mysql-connector-python-rf
+RUN python3 -m pip install python-multipart passlib[bcrypt] python-jose[cryptography]
 
 RUN mkdir /root/Code
 ENV WORKSPACE /root/Code
@@ -33,6 +34,6 @@ RUN \
 RUN \
   cd /root/Code/slides/ && \
   cp pvt/conf/conf.json.docker vars/conf/conf.json && \
-  cp /root/Code/slides/python/sim-ws.py /app/main.py
+  cp /root/Code/slides/python/sim-ws-oauth2.py /app/main.py
 
 COPY ./prestart.sh /app/prestart.sh

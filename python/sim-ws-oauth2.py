@@ -16,13 +16,13 @@ from fastapi import FastAPI, Request, HTTPException, Response
 from pydantic import BaseModel, Field
 import logging
 
-#################
-### libraries ###
-#################
-major=1
-minor=0
-tweak=0
-ver=f'{major}.{minor}.{tweak}'
+###############
+### version ###
+###############
+if 'SLIDES_VERSION' in os.environ:
+  ver = os.environ['SLIDES_VERSION']
+else:
+  ver = 'local'
 
 #################
 ### libraries ###
@@ -33,15 +33,19 @@ try:
 
   sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
   from conf import conf
-
+  from security import *
 except Exception as e:
   raise Exception('library loading error : {}'.format(e)) from e
 
 # init
 tags_metadata = [
   {
-    "name" : "version",
-    "description": "Welcome GET API reporting version."
+    "name" : "welcome",
+    "description": "Welcome API."
+  },
+  {
+      "name": "login",
+      "description": "OAUTH2 authentication API.",
   },
   {
       "name": "sim",
@@ -111,17 +115,35 @@ def log_print(s):
 
 @app.get('/',
   response_model=response_welcome,
-  tags=['version']
+  tags=['welcome']
 )
 async def root():
   return response_welcome()
+
+@app.post('/login',
+  response_model=Token,
+  tags=['login']
+)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+  user = authenticate_user(users_db, form_data.username, form_data.password)
+  if not user:
+    raise HTTPException(
+      status_code=status.HTTP_401_UNAUTHORIZED,
+      detail='Incorrect username or password',
+      headers={'WWW-Authenticate': 'Bearer'},
+    )
+  access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+  access_token = create_access_token(
+    data={'sub': user.username}, expires_delta=access_token_expires
+  )
+  return {'access_token': access_token, 'token_type': 'bearer'}
 
 @app.post(
   '/sim',
   response_model=response_sim,
   tags=['sim']
 )
-async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
+async def sim_post(body: body_sim, request: Request, citytag: str = 'null', current_user: User = Depends(get_current_active_user)):
   client_ip = request.client.host
   log_print('Request from {} city {}'.format(client_ip, citytag))
 
