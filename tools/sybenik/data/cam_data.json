@@ -1,0 +1,46 @@
+[
+  {
+    "name"   : "Piazza",
+    "coords" : [43.73592, 15.88868],
+    "ip"     : "10.222.12.1",
+    "barriers" : {
+      "1" : {
+        "geocoords"   : [0,0,0,0],
+        "pixelcoords" : [0,0,0,0]
+      }
+    }
+  },
+  {
+    "name"   : "Porto",
+    "coords" : [43.7336, 15.89159],
+    "ip"     : "10.222.13.1",
+    "barriers" : {
+      "1" : {
+        "geocoords"   : [0,0,0,0],
+        "pixelcoords" : [0,0,0,0]
+      }
+    }
+  },
+  {
+    "name"   : "Centro1",
+    "coords" : [43.73475, 15.89301],
+    "ip"     : "10.222.11.1",
+    "barriers" : {
+      "1" : {
+        "geocoords"   : [0,0,0,0],
+        "pixelcoords" : [0,0,0,0]
+      }
+    }
+  },
+  {
+    "name"   : "Centro2",
+    "coords" : [43.73475, 15.89301],
+    "ip"     : "10.222.11.2",
+    "barriers" : {
+      "1" : {
+        "geocoords"   : [0,0,0,0],
+        "pixelcoords" : [0,0,0,0]
+      }
+    }
+  }
+]

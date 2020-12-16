@@ -71,9 +71,12 @@ bld/
 *.log
 vars/conf/conf.json
 vars/templates/*_template.json
+tools/sybenik/data/detection-cfg.json
+tools/sybenik/data/ingestion-cfg.json
 
 # Python
-*/__pycache__/
+__pycache__/
+*/*/__pycache__/
 
 # Docker
 docker/.ssh/
