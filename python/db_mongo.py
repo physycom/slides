@@ -7,6 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from bson import json_util, ObjectId
+
 from pandas.io.json import json_normalize
 import json
 
@@ -55,18 +56,18 @@ if __name__ == '__main__':
     ])
     """
     cursor = client["symfony"].TripAdvisor.find(
-      {
-      },
-      {
-        #'location_id' : 1,
-        'city' : 1,
-        #'name' : 1,
-        'values.num_reviews' : 1
-      }
+     {
+     },
+     {
+       #'location_id' : 1,
+       'city' : 1,
+       #'name' : 1,
+       'values.num_reviews' : 1
+     }
     )
-
     df = pd.DataFrame(list(cursor))
     print(df)
+
 
   except Exception as e:
     print('Connection error : {}'.format(e))

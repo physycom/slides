@@ -51,7 +51,7 @@ int main(int argc, char** argv)
     simulation s(jconf, &c);
     std::cout << s.info() << std::endl;
 
-    double dist_near = 100.0;
+    double dist_near = 50.0;
     //finde near nodes
     std::map<int, std::vector<int>> near_nodes;
     for (const auto &ai : s.attractions)
