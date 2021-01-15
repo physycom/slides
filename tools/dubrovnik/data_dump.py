@@ -29,16 +29,16 @@ class meraki_dumper():
       url = 'https://api.meraki.com/api/v0/organizations'
       response = requests.request("GET", url, headers=headers, data = payload).json()
       orgid = response[0]['id']
-      print(f'Request for org_id : {orgid}')
+      print('Request for org_id : {orgid}'.format(orgid=orgid))
 
-      url = f'https://api.meraki.com/api/v0/organizations/{orgid}/inventory'
+      url = 'https://api.meraki.com/api/v0/organizations/{orgid}/inventory'.format(orgid=orgid)
       response = requests.request("GET", url, headers=headers, data = payload).json()
       inventory = pd.DataFrame.from_dict(response)
       #print(inventory.columns)
       #print(inventory)
       #print(inventory[['name', 'networkId', 'serial']])
 
-      url=f'https://api.meraki.com/api/v0/organizations/{orgid}/deviceStatuses'
+      url = 'https://api.meraki.com/api/v0/organizations/{orgid}/deviceStatuses'
       response = requests.request("GET", url, headers=headers, data = payload).json()
       devices = pd.DataFrame.from_dict(response).sort_values(by=['networkId'])
       #print(devices.columns)
