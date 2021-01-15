@@ -26,8 +26,12 @@ if __name__ == '__main__':
   freq = f'{args.dt}s'
   if args.range == '':
     tok = args.input[:args.input.rfind('.')].split('_')
-    start = datetime.strptime(tok[-2], dt_fmt)
-    stop = datetime.strptime(tok[-1], dt_fmt)
+    try:
+      start = datetime.strptime(tok[-2], dt_fmt)
+      stop = datetime.strptime(tok[-1], dt_fmt)
+    except:
+      start = datetime.strptime(tok[-3], dt_fmt)
+      stop = datetime.strptime(tok[-2], dt_fmt)
   else:
     start = datetime.strptime(args.range.split('|')[0], dt_fmt)
     stop = datetime.strptime(args.range.split('|')[1], dt_fmt)
@@ -35,6 +39,7 @@ if __name__ == '__main__':
 
   df = pd.read_csv(args.input, sep=';')
   df.date_time = pd.to_datetime(df.date_time)
+  df.date_time = df.date_time.dt.tz_localize(None)
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
   df = df[ df.kind == args.dev ]
 
@@ -45,15 +50,15 @@ if __name__ == '__main__':
 
     dfg = dfg.set_index('date_time')
     dfg.index = pd.to_datetime(dfg.index)
-    dfr = dfg[['mac_address']].resample(freq).count()
+    dfr = dfg[['mac-address']].resample(freq).count()
     dfr.columns = [f'{sid}']
 
-    s = pd.Series(dfg['mac_address'], index=dfg.index)
+    s = pd.Series(dfg['mac-address'], index=dfg.index)
     dfu = pd.DataFrame(s.groupby(pd.Grouper(freq=freq)).value_counts())
     dfu.columns = ['repetitions_counter']
     dfu = dfu.reset_index()
     dfu = dfu.set_index('date_time')
-    dfu = dfu.groupby('date_time')[['mac_address']].count()
+    dfu = dfu.groupby('date_time')[['mac-address']].count()
     dfu.columns = [f'{sid}_unique']
     #print('dfu', dfu)
     #idx = [ i for i in dfu.index ]
@@ -75,12 +80,15 @@ if __name__ == '__main__':
   fig, ax = plt.subplots(1, 1, figsize=(w, h), dpi=d)
   plt.suptitle(f'Device type {args.dev}, unique device count')
 
-  #print(stats.columns)
+  print(stats.columns)
+  print(stats)
   for cid in stats.columns:
     ntag = cid[cid.rfind('('):cid.rfind('(')+3]
     lbl = cid[0:cid.rfind(')')+1]
 
-    if not ntag in ['(1)', '(5)', '(6)']: continue
+    #if not ntag in ['(1)', '(5)', '(6)']: continue
+    print(cid)
+    print(stats[cid])
     if cid.endswith('_unique'):
       ax.plot(stats.index, stats[cid], '-', label=lbl)
     else:
@@ -95,3 +103,4 @@ if __name__ == '__main__':
     plt.show()
   else:
     plt.savefig(f'{base}_presence_{freq}.png')
+  plt.close()
