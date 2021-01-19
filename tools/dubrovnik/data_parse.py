@@ -68,7 +68,7 @@ if 1:
     plt.close()
 
 if 1:
-  filetag = 'devices_metadata'
+  filetag = 'station_metadata'
   df = pd.read_csv(f'{filetag}.csv', sep=';')
   print(df)
   print(df.columns)

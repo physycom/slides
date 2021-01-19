@@ -4,9 +4,7 @@ import os
 import json
 import requests
 import pandas as pd
-#import geopandas as gpd
 import matplotlib.pyplot as plt
-#import contextily as ctx
 import re
 
 class meraki_dumper():
