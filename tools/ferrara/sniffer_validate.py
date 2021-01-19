@@ -68,8 +68,6 @@ if __name__ == '__main__':
     else:
       stats = pd.concat([stats, dfr], axis=1).fillna(0)
 
-  print('*** stats\n', stats)
-
   # plot
   w, h, d = 10, 10, 150
   plt.figure(figsize=(w, h), dpi=d)
@@ -109,3 +107,4 @@ if __name__ == '__main__':
     ptype = 'bin' if args.bin else 'cmap'
     plt.savefig(f'{base}_{ptype}_vali_{freq}.png')
   plt.close()
+

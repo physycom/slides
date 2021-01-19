@@ -26,6 +26,7 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
         dt = (24 * 60 * 60) / len(rates)
         times = [ midn_start + timedelta(seconds=i*dt) for i in range(len(rates)) ]
         sources[k] = [times, rates]
+        print(sum(rates))
         print(k, len(rates))
 
     dt = 300
@@ -77,7 +78,7 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
   major_lbl = major_lbl[::min_us][::maj_us]
 
   # plot
-  if 'LOCALS' in df.columns:
+  if popin != None and confin == None:
     fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(12, 8))
     axs = axs.flatten()
 
@@ -87,8 +88,8 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
     axes.set_xticklabels(major_lbl, rotation=45)
 
     for c in df.columns:
-      if c != 'LOCALS':
-        axes.plot(ts, df[c], '-o', label=c)
+      if c in ['locals']: continue
+      axes.plot(ts, df[c], '-o', label=c)
 
     axes.legend()
     axes.set_xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
@@ -101,14 +102,14 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
     axes.set_xticks(major_ticks)
     axes.set_xticklabels(major_lbl, rotation=45)
 
-    axes.plot(ts, df['LOCALS'], '-o', label='LOCALS')
+    axes.plot(ts, df['locals'], '-o', label='locals')
 
     axes.legend()
     axes.set_xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
     axes.set_ylabel('Counter')
     axes.grid(which='major', linestyle='-')
     axes.grid(which='minor', linestyle='--')
-  else:
+  elif popin == None and confin != None:
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
     axes.set_xticks(minor_ticks, minor=True)
     axes.set_xticks(major_ticks)

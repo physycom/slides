@@ -4,6 +4,9 @@ import os
 import json
 import requests
 import pandas as pd
+#import geopandas as gpd
+import matplotlib.pyplot as plt
+#import contextily as ctx
 import re
 
 class meraki_dumper():
@@ -26,16 +29,16 @@ class meraki_dumper():
       url = 'https://api.meraki.com/api/v0/organizations'
       response = requests.request("GET", url, headers=headers, data = payload).json()
       orgid = response[0]['id']
-      print(f'Request for org_id : {orgid}')
+      print('Request for org_id : {orgid}'.format(orgid=orgid))
 
-      url = f'https://api.meraki.com/api/v0/organizations/{orgid}/inventory'
+      url = 'https://api.meraki.com/api/v0/organizations/{orgid}/inventory'.format(orgid=orgid)
       response = requests.request("GET", url, headers=headers, data = payload).json()
       inventory = pd.DataFrame.from_dict(response)
       #print(inventory.columns)
       #print(inventory)
       #print(inventory[['name', 'networkId', 'serial']])
 
-      url=f'https://api.meraki.com/api/v0/organizations/{orgid}/deviceStatuses'
+      url = 'https://api.meraki.com/api/v0/organizations/{orgid}/deviceStatuses'.format(orgid=orgid)
       response = requests.request("GET", url, headers=headers, data = payload).json()
       devices = pd.DataFrame.from_dict(response).sort_values(by=['networkId'])
       #print(devices.columns)
@@ -45,8 +48,8 @@ class meraki_dumper():
 
       geodevices=pd.DataFrame()
       for nid, df in inventory.groupby('networkId'):
-        print(f'Network ID {nid}, devices {len(df)}')
-        url=f'https://api.meraki.com/api/v0/networks/{nid}/devices'
+        print( 'Network ID {}, devices {}'.format(nid, len(df)) )
+        url = 'https://api.meraki.com/api/v0/networks/{nid}/devices'.format(nid=nid)
         response = requests.request("GET", url, headers=headers, data = payload).json()
         geodev = pd.DataFrame.from_dict(response)
         geodevices = geodevices.append(geodev)
@@ -59,7 +62,7 @@ class meraki_dumper():
       devdata.to_csv(devdatafile, sep=';', index=True)
       #print(devdata)
     except Exception as e:
-      print(f'Problems with devices metadata : {e}')
+      print('Problems with devices metadata : {}'.format(e))
 
 
   def dump_data(self):
@@ -70,7 +73,7 @@ class meraki_dumper():
 
     start = config['start']
     stop  = config['stop']
-    timetag = f"{start.replace(':', '')}_{stop.replace(':', '')}"
+    timetag = "{}_{}".format(start.replace(':', ''), stop.replace(':', ''))
     perPage = self.perPage
 
     if not os.path.exists(devdatafile):
@@ -92,10 +95,10 @@ class meraki_dumper():
       evtdata = pd.DataFrame()
       for netid in devdata.networkId.unique():
         tlast = start
-        url=f'https://api.meraki.com/api/v0/networks/{netid}/events?productType={ptype}&perPage={perPage}&startingAfter={start}'
+        url = 'https://api.meraki.com/api/v0/networks/{netid}/events?productType={ptype}&perPage={perPage}&startingAfter={start}'.format(netid=netid, ptype=ptype, perPage=perPage, start=start)
         rcnt = 0
         while tlast < stop:
-          print(f'Requesting network {netid} prodtype {ptype} #{rcnt:02d}')
+          print('Requesting network {netid} prodtype {ptype} #{rcnt:02d}'.format(netid=netid, ptype=ptype, rcnt=rcnt))
           response = requests.request("GET", url, headers=headers, data = payload)
           rcnt += 1
           if response.status_code == 200:
@@ -111,12 +114,12 @@ class meraki_dumper():
             url = nextlink
             tlast = chunk_stop
             #print(chunk_start, chunk_stop, chunk_len, url)
-            print(f'Response : chunk_start {chunk_start}, chunk_len {chunk_len}')
+            print('Response : chunk_start {chunk_start}, chunk_len {chunk_len}'.format(chunk_start=chunk_start, chunk_len=chunk_len))
 
             evtdata = evtdata.append(df)
             evtdata2 = evtdata2.append(df)
           else:
-            print(f'Failed request')
+            print('Failed request')
             print(response.text)
             break
 
@@ -124,14 +127,14 @@ class meraki_dumper():
       evtdata = evtdata.drop_duplicates()
       evtdata = evtdata[ evtdata.occurredAt < stop ]
       evtdata = evtdata.sort_values(by='occurredAt')
-      evtdata.to_csv(f'events_{timetag}_{ptype}.csv', sep=';', index=False)
-      print(f'***** Eventdata per type {ptype} : {len(evtdata)}')
+      evtdata.to_csv('events_{timetag}_{ptype}.csv'.format(timetag=timetag, ptype=ptype), sep=';', index=False)
+      print('***** Eventdata per type {ptype} : {len}'.format(ptype=ptype, len=len(evtdata)))
 
     evtdata2 = evtdata2.drop(columns=['eventData'])
     evtdata2 = evtdata2.drop_duplicates()
     evtdata2 = evtdata2[ evtdata2.occurredAt < stop ]
     evtdata2 = evtdata2.sort_values(by='occurredAt')
-    evtdata2.to_csv(f'events_{timetag}.csv', sep=';', index=False)
+    evtdata2.to_csv('events_{timetag}.csv'.format(timetag=timetag), sep=';', index=False)
     print(evtdata2.columns)
     print(evtdata2)
 

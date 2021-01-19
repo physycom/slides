@@ -8,10 +8,8 @@ import win32serviceutil
 import win32event
 import servicemanager
 
-WORKSPACE = 'C:/Users/Alessandro/Codice'
-
 try:
-  sys.path.append(os.path.join(WORKSPACE, 'slides', 'tools', 'sybenik'))
+  sys.path.append(os.path.join(os.environ['SYBENIK_WORKSPACE'], 'slides', 'tools', 'sybenik'))
   from ingestion_engine import ingestion
 except Exception as e:
   raise Exception(f'ingestion svc : lib init failed {e}')
@@ -23,7 +21,7 @@ class PySvc(win32serviceutil.ServiceFramework):
 
   def __init__(self, args):
     win32serviceutil.ServiceFramework.__init__(self,args)
-    self._svc_config_file = os.path.join(WORKSPACE, 'slides', 'work_sybenik', 'ingestion-cfg.json')
+    self._svc_config_file = os.path.join(os.environ['SYBENIK_WORKSPACE'], 'slides', 'sybenik', 'data', 'ingestion-cfg.json')
     self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
 
     with open(self._svc_config_file) as cin:
