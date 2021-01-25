@@ -81,7 +81,7 @@ class conf:
     max_attr = 15
     if len(attr) > max_attr:
       log_print(f'*********** Lowering attractions number to {max_attr}', self.logger)
-      attr = { k : v for k, v in list(attr.items())[:6] }
+      attr = { k : v for k, v in list(attr.items())[:max_attr] }
     conf['attractions'] = attr
 
     # blank timetable
@@ -152,8 +152,8 @@ class conf:
           'creation_dt' : self.creation_dt,
           'creation_rate' : [ v for v in tt.values() ],
           'source_location' : {
-            'lat' : src['lat'],
-            'lon' : src['lon']
+            'lat' : src_list[tag]['lat'],
+            'lon' : src_list[tag]['lon']
           },
           'pawns_from_weight': {
             'tourist' : {
@@ -184,7 +184,7 @@ class conf:
       'creation_rate' : [ int(v) for v in tt.values() ],
       'pawns' : {
         'locals' : {
-          'beta_bp_miss'   : 0, #1, #0.99,
+          'beta_bp_miss'   : 0,
           'start_node_lid' : -1,
           'dest'           : -1
         }

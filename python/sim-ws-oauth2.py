@@ -76,7 +76,7 @@ app = FastAPI(
   version=ver,
   openapi_tags=tags_metadata
 )
-logger = logging.getLogger("gunicorn.error")
+logger = logging.getLogger("uvicorn")
 
 class response_welcome(BaseModel):
   message : str = 'slides simulation ws'

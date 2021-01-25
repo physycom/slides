@@ -83,8 +83,7 @@ if __name__ == '__main__':
   print(stats.columns)
   print(stats)
   for cid in stats.columns:
-    ntag = cid[cid.rfind('('):cid.rfind('(')+3]
-    lbl = cid[0:cid.rfind(')')+1]
+    ntag, lbl = cid.split('-')
 
     #if not ntag in ['(1)', '(5)', '(6)']: continue
     print(cid)
@@ -92,7 +91,7 @@ if __name__ == '__main__':
     if cid.endswith('_unique'):
       ax.plot(stats.index, stats[cid], '-', label=lbl)
     else:
-      pass
+      continue
 
   ax.set_title(f'period {start} -> {stop}, resampling {freq}')
   ax.legend()
