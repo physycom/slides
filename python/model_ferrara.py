@@ -10,6 +10,7 @@ import json
 from datetime import datetime, timedelta
 import pymongo
 import mysql.connector
+from collections import defaultdict
 
 ##########################
 #### log function ########
@@ -244,6 +245,70 @@ class model_ferrara():
     except Exception as e:
       raise Exception(f'[mod_fe] Query failed : {e}')
 
+  def map_station_to_source(self):
+    stations = pd.DataFrame.from_dict(self.st_info).transpose()
+    stations = stations.drop(columns=['cluster'])
+    
+    map_center = stations[['latitude', 'longitude']].mean().values
+    sourcemap = defaultdict(lambda: 'none')
+    sourcemap.update({ i : k for k, v in self.station_map.items() for i in v })
+    # print(sourcemap)
+    stationsmap = defaultdict(lambda: 'none')
+    stationsmap.update({ v:k for k,v in sourcemap.items() })
+    # print(stationsmap)
+    stations['source'] = [ stationsmap[str(i)] for i in stations.index ]
+    stations['color'] = [ 'blue' if i != 'none' else 'red' for i in stations.source ]
+    # print(stations)
+
+    simconf = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_ws', 'output', 'wsconf_sim_ferrara.json')
+    with open(simconf) as sin:
+      sconf = json.load(sin)
+    sources = pd.DataFrame.from_dict(sconf['sources']).transpose().dropna(subset=['source_location'])
+    sources['name'] = sources.index.str.replace('_IN', '')
+    sources.index = sources['name']
+    sources['lat'] = sources.source_location.apply(lambda x: x['lat'])
+    sources['lon'] = sources.source_location.apply(lambda x: x['lon'])
+    sources['type'] = 'synth'
+    sources.loc[ [ i for v in self.station_map.values() for i in v ], 'type'] = 'data'
+    colors = { 'synth':'red', 'data':'blue'}
+    sources['color'] = sources.type.apply(lambda t: colors[t])
+    sources['station'] = sources.name.apply(lambda n: sourcemap[n] )
+    #sources[['lat', 'lon']] = sources.source_location.apply(lambda x: { 'lat':x['lat'], 'lon':x['lon'] })
+    sources = sources[['lat', 'lon', 'name', 'color', 'station']]
+    # print(sources)
+    # print(sources.columns)
+
+    import folium
+    m = folium.Map(location=map_center, control_scale=True, zoom_start=9)
+    stations.apply(lambda row: folium.CircleMarker(
+      location=[row.latitude, row.longitude],
+      radius=7,
+      fill_color=f'{row.color}',
+      color=f'{row.color}',
+      popup=folium.Popup(f'<p><b>STATION</b></br>id <b>{row.station_id}</b></br>name <b>{row.name}</b></br>source <b>{row.source}</b></p>', show=False, sticky=True),
+    ).add_to(m), axis=1)
+    sources[ sources.station != 'none' ].apply(lambda row: folium.PolyLine(
+      locations=[
+        [ stations.loc[row.station, 'latitude'], stations.loc[row.station, 'longitude'] ],
+        [ row.lat, row.lon ]
+      ],
+      color='black',
+      weight=2,
+    ).add_to(m), axis=1)
+    sources.apply(lambda row: folium.CircleMarker(
+      location=[row.lat, row.lon],
+      radius=10,
+      fill_color=f'{row.color}',
+      color=f'{row.color}',
+      fill_opacity=1.0,
+      popup=folium.Popup(f'<p><b>SOURCE</b></br>id <b>{row.name}</b></p>', show=True, sticky=True),
+    ).add_to(m), axis=1)
+    s, w = stations[['latitude', 'longitude']].min()
+    n, e = stations[['latitude', 'longitude']].max()
+    m.fit_bounds([ [s,w], [n,e] ])
+    m.save(f'map_sniffer2sources.html')
+
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('-c', '--cfg', help='config file', required=True)
@@ -254,43 +319,7 @@ if __name__ == '__main__':
   with open(args.cfg) as f:
     config = json.load(f)
 
-  try:
-    client = pymongo.MongoClient(
-      host=          config['host'],
-      port=          config['port'],
-      username=      config['user'],
-      password=      config['pwd'],
-      authSource=    config['db'],
-      authMechanism= config['aut']
-    )
-    print(f'Authentication ok')
+  mfe = model_ferrara(config)  
 
-    start_date = config['start_date']
-    stop_date  = config['stop_date']
-
-    start_tag = start_date.replace('-', '').replace(':', '').replace(' ', '-')
-    stop_tag = stop_date.replace('-', '').replace(':', '').replace(' ', '-')
-
-    station_list = [ "1", "4" ]
-
-    with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'extra', 'ferrara_sniffer.json')) as sin:
-      stations_info = json.load(sin)
-
-    db_filter = {
-      'date_time' : {
-        '$gte' : start_date,
-        '$lt'  : stop_date
-      },
-      'kind' : 'wifi',
-      'station_name' : { '$in' : [ stations_info[sid]['station_name'] for sid in station_list ] }
-    }
-    #print(json.dumps(db_filter, indent=2))
-    cursor = client['symfony'].FerraraPma.find(db_filter)
-
-    df = pd.DataFrame(list(cursor))
-    print(f'Received {len(df)} data')
-    out = f'{base}_{start_tag}_{stop_tag}.csv'
-    df.to_csv(out, sep=';', header=True, index=True)
-
-  except Exception as e:
-    print('Connection error : {}'.format(e))
+  if 1:
+    mfe.map_station_to_source()
