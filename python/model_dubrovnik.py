@@ -10,6 +10,7 @@ import json
 from datetime import datetime, timedelta
 import pymongo
 import mysql.connector
+from collections import defaultdict
 
 ##########################
 #### log function ########
@@ -31,39 +32,37 @@ class model_dubrovnik():
 
   def __init__(self, config, logger = None):
     self.logger = logger
-    self.got_data = False
+    self.cnt = pd.DataFrame()
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
-    self.rates_dt = 10 * 60
+    self.rates_dt = 15 * 60
     self.config = config
     self.station_map = {}
     self.data = pd.DataFrame()
 
-    if 'station_mapping' in config:
-      self.station_map = config['station_mapping']
-
     with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'extra', 'dubrovnik_sniffer.json')) as sin:
       self.st_info = json.load(sin)
+    st_ser2id = { st['serial'] : st['id'] for st in self.st_info }
+
+    self.station_map = config['station_mapping']
+    self.station_mapid = { k : [ st_ser2id[si] for si in v ] for k,v in self.station_map.items() }
+    #for k,v in self.station_map.items(): log_print(f'Source {k}\n{v}\n{self.station_mapid[k]}', self.logger)
+    self.source_map = { i : k for k,v in self.station_map.items() for i in v }
+    self.source_mapid = { i : k for k,v in self.station_mapid.items() for i in v }
+    #for (k,v),(k1,v1) in zip(self.source_map.items(), self.source_mapid.items()): log_print(f'Sniffer {k} ({k1}) : {v} ({v==v1})', self.logger)
 
   def full_table(self, start, stop, tag, resampling=None):
-    if len(self.station_map) == 0:
-      raise Exception(f'No station to generate')
+    start = pd.to_datetime(start).tz_localize('Europe/Rome').tz_convert('utc')
+    stop = pd.to_datetime(stop).tz_localize('Europe/Rome').tz_convert('utc')
 
-    log_print(f'Generating model FE for {tag}', self.logger)
+    if not tag in self.station_map:
+      raise Exception(f'Model DU tag {tag} not in sniffer-source map')
 
-    if len(self.data) == 0:
-      self.count_raw(start, stop)
-
-    # retrieve data
-    data = self.data
-    #print(data)
-    if tag in data:
-      data = data[[tag]]
-      #print(data[[tag]])
+    if not tag in self.cnt.columns:
+      data = self.count_raw(start, stop)
     else:
-      raise Exception(f'[mod_fe] No station match for source {tag}')
+      data = self.cnt
 
-    # upsample
     if resampling != None and resampling < self.rates_dt:
       dtot = data.sum()
       data = data.resample(f'{resampling}s').interpolate(direction='both')
@@ -83,7 +82,9 @@ class model_dubrovnik():
       data = data.reindex(fullt).interpolate(direction='both')
 
     data = data[ (data.index >= start) & (data.index < stop) ]
-    return data
+    data = data.tz_convert('Europe/Rome').tz_localize(None)
+    self.cnt = self.cnt.drop(columns=tag)
+    return data[[tag]]
 
   def count_raw(self, start, stop):
     """
@@ -98,14 +99,15 @@ class model_dubrovnik():
     df['wday'] = [ t.strftime('%a') for t in df.index ]
     df['date'] = df.index.date
     df['time'] = df.index.time
+    df['source'] = df.station_id.apply(lambda x: self.source_mapid[x])
     #print(df)
 
     tnow = datetime.now()
     cnts = pd.DataFrame(index=pd.date_range(start, stop, freq=fine_freq))
-    cnts = cnts.tz_localize('Europe/Rome')
+    #cnts = cnts.tz_localize('Europe/Rome')
 
-    for station, dfg in df.groupby(['station_id']):
-      print(station, len(dfg))
+    for station, dfg in df.groupby(['source']):
+      #print(station, len(dfg))
       s = pd.Series(dfg['device_uid'], index=dfg.index)
       dfu = pd.DataFrame(s.groupby(pd.Grouper(freq=fine_freq)).value_counts())
       dfu.columns = [station]
@@ -113,30 +115,27 @@ class model_dubrovnik():
       dfu = dfu.set_index('date_time')
       dfu = dfu.groupby('date_time')[['device_uid']].count()
       dfu.columns = [station]
-      print(dfu)
+      # print(dfu)
       cnts[station] = np.nan
       mrg = cnts[[station]]
-      print(mrg)
+      # print(mrg)
       mrg = pd.merge(mrg, dfu, left_index=True, right_index=True, how='left', suffixes=('_cnts', ''))
-      print('merge\n', mrg)
+      # print('merge\n', mrg)
       cnts[station] = mrg[f'{station}']
 
     # fix null/empty/nan/missing values
-    cnts[ cnts == 0 ] = np.nan
-    cnts = cnts.reset_index().interpolate(limit=10000, limit_direction='both').set_index('index')
+    #cnts[ cnts == 0 ] = np.nan
+
+    #cnts = cnts.interpolate(limit=10000, limit_direction='both')
+    cnts = cnts.fillna(0)
+
     cnts.index.name = 'time'
     tcounting = datetime.now() - tnow
     log_print(f'Counting done in {tcounting}', self.logger)
+    #print(cnts)
 
-    # convert to source/attractions naming convention and apply station-to-source mapping
-    smap = self.station_map
-    data = pd.DataFrame(index=cnts.index)
-    for sid, names in smap.items():
-      for name in names:
-        data[name] = cnts[sid] / len(names)
-    #print(data)
-
-    self.data = data.astype(int)
+    self.cnt = cnts.astype(int)
+    return self.cnt
 
   def get_data(self, start, stop):
     try:
@@ -150,16 +149,15 @@ class model_dubrovnik():
       )
       cursor = db.cursor()
 
-      id_list = sum(self.station_map.values(), [])
+      id_list = sum(self.station_mapid.values(), [])
       start_utc = start.strftime(self.date_format)
       stop_utc = stop.strftime(self.date_format)
-      print('CONVERT TO UTC REMINDER !!!!!')
       query = f"""
-        SELECT 
+        SELECT
           de.eventOccurredAt as date_time,
           de.id_device as station_id,
           de.eventClientiId as device_uid
-        FROM 
+        FROM
           DubrovnikPma.DevicesEvents de
         WHERE
           (de.eventOccurredAt >= '{start_utc}' AND de.eventOccurredAt < '{stop_utc}')
@@ -223,6 +221,66 @@ class model_dubrovnik():
 
     return df1
 
+  def map_station_to_source(self):
+    stations = pd.DataFrame.from_dict(self.st_info)
+    sourcemap = defaultdict(lambda: 'none')
+    sourcemap.update(self.source_mapid)
+    #stations = stations.set_index('serial').loc[ self.source_map.keys(), :].reset_index()
+    stations['source'] = stations.id.apply(lambda x: sourcemap[x])
+    stations['color'] = 'blue' 
+    stations.loc[stations.source == 'none', 'color'] = 'red' 
+    # stations['color'] = stations.serial.apply(lambda x: clustercol[clustermap[x]])
+    print(stations)
+    #stations = stations[stations.cluster != 'none']
+    map_center = stations[['lat', 'lon']].mean().values
+
+    simconf = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_ws', 'output', 'wsconf_sim_dubrovnik.json')
+    with open(simconf) as sin:
+      sconf = json.load(sin)
+    sources = pd.DataFrame.from_dict(sconf['sources']).transpose().dropna(subset=['source_location'])
+    sources['name'] = sources.index.str.replace('_IN', '')
+    sources.index = sources['name']
+    sources['lat'] = sources.source_location.apply(lambda x: x['lat'])
+    sources['lon'] = sources.source_location.apply(lambda x: x['lon'])
+    sources['type'] = 'synth'
+    sources.loc[ self.station_map.keys() , 'type'] = 'data'
+    colors = { 'synth':'red', 'data':'blue'}
+    sources['color'] = sources.type.apply(lambda t: colors[t])
+    #sources[['lat', 'lon']] = sources.source_location.apply(lambda x: { 'lat':x['lat'], 'lon':x['lon'] })
+    sources = sources[['lat', 'lon', 'name', 'color']]
+    print(sources)
+    print(sources.columns)
+
+    import folium
+    m = folium.Map(location=map_center, control_scale=True, zoom_start=9)
+    stations.apply(lambda row: folium.CircleMarker(
+      location=[row.lat, row.lon],
+      radius=7,
+      fill_color=f'{row.color}',
+      color=f'{row.color}',
+      popup=folium.Popup(f'<p><b>STATION</b></br>id <b>{row.id}</b></br>serial <b>{row.serial}</b></br>source <b>{row.source}</b></p>', show=False, sticky=True),
+    ).add_to(m), axis=1)
+    stations[ stations.source != 'none' ].apply(lambda row: folium.PolyLine(
+      locations=[
+        [ sources.loc[row.source, 'lat'], sources.loc[row.source, 'lon'] ],
+        [ row.lat, row.lon ]
+      ],
+      color='black',
+      weight=2,
+    ).add_to(m), axis=1)
+    sources.apply(lambda row: folium.CircleMarker(
+      location=[row.lat, row.lon],
+      radius=10,
+      fill_color=f'{row.color}',
+      color=f'{row.color}',
+      fill_opacity=1.0,
+      popup=folium.Popup(f'<p><b>SOURCE</b></br>id <b>{row.name}</b></p>', show=True, sticky=True),
+    ).add_to(m), axis=1)
+    s, w = stations.loc[ stations.lon > 0, ['lat', 'lon']].min()
+    n, e = stations.loc[ stations.lon > 0, ['lat', 'lon']].max()
+    m.fit_bounds([ [s,w], [n,e] ])
+    m.save(f'map_sniffer2sources.html')
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('-c', '--cfg', help='config file', required=True)
@@ -246,8 +304,8 @@ if __name__ == '__main__':
     import folium
     m = folium.Map(location=map_center, control_scale=True, zoom_start=9)
     df.apply(lambda row: folium.CircleMarker(
-      location=[row.lat, row.lon], 
-      radius=7, 
+      location=[row.lat, row.lon],
+      radius=7,
       fill_color='red',
       color='red',
       popup=folium.Popup(f'<p><b>SNIFFER</b></br>id <b>{row.id}</b></br>serial <b>{row.serial}</b></p>', show=False, sticky=True),
@@ -255,16 +313,40 @@ if __name__ == '__main__':
     s, w = df[['lat', 'lon']].min()
     n, e = df[['lat', 'lon']].max()
     m.fit_bounds([ [s,w], [n,e] ])
-    m.save(f'station_map.html')
+    m.save(f'map_router.html')
 
-  start_date = '2021-01-21 10:00:00'
-  stop_date = '2021-01-21 12:00:00'
-  start = datetime.strptime(start_date, mdu.date_format)
-  stop = datetime.strptime(stop_date, mdu.date_format)
+
+  start_date = '2021-01-22 00:00:00 CET'
+  stop_date = '2021-01-23 00:00:00 CET'
+  dt_fmt = '%Y-%m-%d %H:%M:%S %Z'
+  start = pd.to_datetime(start_date, format=dt_fmt).tz_localize(None)
+  stop = pd.to_datetime(stop_date, format=dt_fmt).tz_localize(None)
   if 0:
     data = mdu.get_data(start, stop)
     print(data)
 
-  if 1:
+  if 0:
     cnt = mdu.count_raw(start, stop)
     print(cnt)
+
+  if 0:
+    df = mdu.full_table(start, stop)
+    print(df)
+
+    w, h = 12, 10
+    fig, ax = plt.subplots(1, 1, figsize=(w, h))
+    plt.suptitle(f'Source timetables')
+
+    for cid in df.columns:
+      ax.plot(df.index, df[cid], '-', label=cid)
+
+    ax.set_title(f'period {start} -> {stop}')
+    ax.legend()
+    ax.grid()
+    ax.tick_params(labelrotation=45)
+
+    plt.savefig(f'source_timetables.png')
+    plt.close()
+
+  if 1:
+    mdu.map_station_to_source()

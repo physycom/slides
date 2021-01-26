@@ -110,14 +110,23 @@ class conf:
       params = self.ms.mod_fe.station_map
       snif_src.update({ src : snif for snif in params for src in params[snif] })
       src_num = len(snif_src)
-      #print(snif_src)
       norm_src = [ n for n, v in snif_src.items() if v == None ]
       m0_num = len(norm_src)
-      #print(norm_src)
       log_print(f'Caveat FE - src {src_num}, m0_src {m0_num}', self.logger)
       norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
       norm_wei /= ( norm_wei.sum() * src_num / m0_num )
-      #print(norm_wei)
+      for s, c in zip(norm_src, norm_wei):
+        srcdata[s] *= c
+    elif citytag == 'dubrovnik':
+      snif_src = { src : None for src in src_list }
+      params = self.ms.mod_du.source_map
+      snif_src.update({ snif : 'data' for snif in params.values() })
+      src_num = len(snif_src)
+      norm_src = [ n for n, v in snif_src.items() if v == None ]
+      m0_num = len(norm_src)
+      log_print(f'Caveat DU - src {src_num}, m0_src {m0_num}', self.logger)
+      norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
+      norm_wei /= ( norm_wei.sum() * src_num / m0_num )
       for s, c in zip(norm_src, norm_wei):
         srcdata[s] *= c
     else:

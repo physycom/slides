@@ -144,8 +144,9 @@ if __name__ == '__main__':
     clusterlist = [ 
       # 'cluster1', 
       # 'cluster2', 
-      'cluster3', 
-      'cluster4',
+      #'cluster3', 
+      #'cluster4',
+      'cluster7',
     ]
     filterlist = [ f'{c}_unique' for c in clusterlist ]
     for cid in astats.columns:

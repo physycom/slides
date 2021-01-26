@@ -13,6 +13,7 @@ from glob import glob
 try:
   sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
   from model_ferrara import model_ferrara
+  from model_dubrovnik import model_dubrovnik
 except Exception as e:
   raise Exception('[model_slides] library load failed : {}'.format(e))
 
@@ -59,6 +60,7 @@ class model_slides:
 
     # init city-specific model
     self.mod_fe = model_ferrara(config['params']['ferrara'], self.logger)
+    self.mod_du = model_dubrovnik(config['params']['dubrovnik'], self.logger)
     self.models = {}
 
     # collect model1 filenames
@@ -112,7 +114,14 @@ class model_slides:
       try:
         data = self.mod_fe.full_table(start, stop, tag, resampling=self.rates_dt)
       except Exception as e:
-        log_print(f'Model FE errors for {tag}, falling back to m0 : {e}', self.logger)
+        log_print(f'Model {m01} errors for {tag}, falling back to m0 : {e}', self.logger)
+        data = pd.DataFrame()
+    elif city == 'dubrovnik':
+      m01 = 'DU'
+      try:
+        data = self.mod_du.full_table(start, stop, tag, resampling=self.rates_dt)
+      except Exception as e:
+        log_print(f'Model {m01} errors for {tag}, falling back to m0 : {e}', self.logger)
         data = pd.DataFrame()
     elif 'm1' in model:
       m01 = 'm1'
@@ -120,6 +129,9 @@ class model_slides:
       data = pd.read_csv(mfile, sep=';')
     else:
       data = pd.DataFrame()
+
+    #print(data)
+    #print(f'tag {tag}')
 
     if not tag in data.columns:
       m01 = 'm0'
@@ -129,7 +141,7 @@ class model_slides:
       data = self.rescale_data(start, stop, data, tot=dtot).rename(columns={'data':tag})
       #print('rescaled\n', data)
 
-    #log_print(f'Data created for ({city}, {tag}) mode {m01}', self.logger)
+    log_print(f'Data created for ({city}, {tag}) mode {m01}', self.logger)
     return data
 
   def import_model1(self, city, tag, file):
