@@ -38,6 +38,10 @@ if __name__ == '__main__':
   base = f'{base}_{start.strftime(dt_fmt)}_{stop.strftime(dt_fmt)}_{args.dev}'
 
   df = pd.read_csv(args.input, sep=';')
+  try:
+    df = df.rename(columns={'mac-address':'mac_address'})
+  except:
+    pass
   df.date_time = pd.to_datetime(df.date_time)
   df.date_time = df.date_time.dt.tz_localize(None)
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
@@ -50,15 +54,15 @@ if __name__ == '__main__':
 
     dfg = dfg.set_index('date_time')
     dfg.index = pd.to_datetime(dfg.index)
-    dfr = dfg[['mac-address']].resample(freq).count()
+    dfr = dfg[['mac_address']].resample(freq).count()
     dfr.columns = [f'{sid}']
 
-    s = pd.Series(dfg['mac-address'], index=dfg.index)
+    s = pd.Series(dfg['mac_address'], index=dfg.index)
     dfu = pd.DataFrame(s.groupby(pd.Grouper(freq=freq)).value_counts())
     dfu.columns = ['repetitions_counter']
     dfu = dfu.reset_index()
     dfu = dfu.set_index('date_time')
-    dfu = dfu.groupby('date_time')[['mac-address']].count()
+    dfu = dfu.groupby('date_time')[['mac_address']].count()
     dfu.columns = [f'{sid}_unique']
     #print('dfu', dfu)
     #idx = [ i for i in dfu.index ]
@@ -83,7 +87,11 @@ if __name__ == '__main__':
   print(stats.columns)
   print(stats)
   for cid in stats.columns:
-    ntag, lbl = cid.split('-')
+    try:
+      ntag, lbl = cid.split('-')
+    except:
+      ntag = lbl = cid
+      
 
     #if not ntag in ['(1)', '(5)', '(6)']: continue
     print(cid)
