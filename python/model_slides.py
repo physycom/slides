@@ -9,6 +9,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dateutil import tz
 from glob import glob
+from scipy import interpolate
 
 try:
   sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
@@ -159,28 +160,31 @@ class model_slides:
     log_print('creating model0 {}-{}'.format(city, tag), self.logger)
     m0filename = self.wdir + '/{city}-{tag}-model0.csv'.format(city=city, tag=tag)
 
+    # generate unique id as seed for random superposition
+    uid = int.from_bytes(m0filename.encode(), 'little') % (2**32 - 1)
+
     if not os.path.exists(m0filename) or True:
       generic_monday = '2020-05-04 12:00:00' # just because it's a monday
       weekdays = [ t.strftime('%a').lower() for t in [ datetime.strptime(generic_monday, self.date_format) + timedelta(days=i) for i in range(7) ] ]
 
       midn = datetime.strptime('00:00:00', self.time_format)
       rates_per_day = 24 * 60 * 60 // self.rates_dt
-      ttrates = { t : -1 for t in [ (midn + i*timedelta(seconds=self.rates_dt)).time() for i in range(rates_per_day) ] }
+      ttrates = { t : -1 for t in [ (midn + i*timedelta(seconds=self.rates_dt)) for i in range(rates_per_day) ] }
 
       ### fake data generation #############################
       tt = ttrates.copy()
       for t in tt:
-        if   t < datetime.strptime('06:00:00', self.time_format).time():
+        if   t.time() < datetime.strptime('06:00:00', self.time_format).time():
           tt[t] = 10
-        elif t < datetime.strptime('07:00:00', self.time_format).time():
+        elif t.time() < datetime.strptime('07:00:00', self.time_format).time():
           tt[t] = 20
-        elif t < datetime.strptime('09:00:00', self.time_format).time():
+        elif t.time() < datetime.strptime('09:00:00', self.time_format).time():
           tt[t] = 60
-        elif t < datetime.strptime('11:00:00', self.time_format).time():
+        elif t.time() < datetime.strptime('11:00:00', self.time_format).time():
           tt[t] = 30
-        elif t < datetime.strptime('14:00:00', self.time_format).time():
+        elif t.time() < datetime.strptime('14:00:00', self.time_format).time():
           tt[t] = 40
-        elif t < datetime.strptime('19:00:00', self.time_format).time():
+        elif t.time() < datetime.strptime('19:00:00', self.time_format).time():
           tt[t] = 30
         else:
           tt[t] = 10
@@ -199,10 +203,78 @@ class model_slides:
         vals = np.asarray(list(tt.values()))
         df[day] = vals / vals.sum() * self.params[city]['daily_t']
         #print(day, df[day].sum())
+
+      ref_day = '1985-04-16'
+      ref_curve1 = [
+        [ datetime.strptime(f'{ref_day} {t}:00', self.date_format), v] 
+        for t,v in [
+          ['00:00', 10 ],
+          ['02:00', 5  ],
+          ['04:00', 10 ],
+          ['06:00', 30 ],
+          ['07:30', 60 ],
+          ['11:00', 35 ],
+          ['14:00', 40 ],
+          ['19:00', 30 ],
+          ['23:59', 10 ],
+        ]
+      ]
+      ref_curve2 = [
+        [ datetime.strptime(f'{ref_day} {t}:00', self.date_format), v] 
+        for t,v in [
+          ['00:00', 10 ],
+          ['02:00', 5  ],
+          ['04:00', 10 ],
+          ['06:00', 30 ],
+          ['10:00', 60 ],
+          ['11:00', 50 ],
+          ['15:00', 60 ],
+          ['20:00', 45 ],
+          ['23:59', 10 ],
+        ]      
+      ]
+      epoch = datetime.strptime(f'{ref_day} 00:00:00', self.date_format)
+      x1 = [ (t - epoch).total_seconds() for t,_ in ref_curve1 ]
+      y1 = [ v for _,v in ref_curve1 ]
+      spline1 = interpolate.splrep(x1, y1, s=0)
+      x2 = [ (t - epoch).total_seconds() for t,_ in ref_curve2 ]
+      y2 = [ v for _,v in ref_curve2 ]
+      spline2 = interpolate.splrep(x2, y2, s=0)
+      tt_sec = [ (t - df.index[0]).total_seconds() for t in df.index ]
+      cnt_mode1 = interpolate.splev(tt_sec, spline1, der=0)
+      cnt_mode2 = interpolate.splev(tt_sec, spline2, der=0)
+      cnt_scaled1 = cnt_mode1 / cnt_mode1.sum() * self.params[city]['daily_t']
+      cnt_scaled2 = cnt_mode2 / cnt_mode2.sum() * self.params[city]['daily_t']
+      df['mode1'] = cnt_scaled1
+      df['mode2'] = cnt_scaled2
+      #df['m0_mejo_norm'] = tt_cnt_rescaled
+      #df['m0_mejo_norm_mon'] = [ v + v * 0.05 * np.random.normal(0, 1, 1)[0] for v in tt_cnt_rescaled ]
+      #df['m0_mejo_norm_tue'] = [ v + v * 0.05 * np.random.normal(0, 1, 1)[0] for v in tt_cnt_rescaled ]
+
       df = df.astype('int')
       df.index = pd.to_datetime(df.index, format=self.time_format)
       df.index.name = 'time'
-      df.to_csv(m0filename, sep=';', header=True, index=True)
+      df.to_csv(f'{m0filename}.old', sep=';', header=True, index=True)
+
+      # #print(df)
+      # df.plot()
+      # plt.show()
+
+      df1 = pd.DataFrame(index=df.index)
+      daylbl = [ c for c in df.columns if not c.startswith('mode') ]
+      np.random.seed(uid)
+      alphas = np.random.uniform(0,1,len(daylbl))
+      noises = np.random.normal(0,1,(len(alphas), len(df1)))
+      # print(alphas)
+      # print(noises.shape)
+      for a,d,noise in zip(alphas, daylbl, noises):
+        vals = a * df.mode1 + (1 - a) * df.mode2
+        vals = np.array([ v + 0.1 * n * v for v,n in zip(vals, noise) ])
+        df1[d] = vals / vals.sum() * self.params[city]['daily_t']
+      df1.to_csv(f'{m0filename}', sep=';', header=True, index=True)
+
+      #df1.plot(style='-o', subplots=True, layout=(3, 3), grid=True, ms=3)
+      #plt.show()
 
     self.models[(city, tag)] = {
       'm0' : m0filename
@@ -298,12 +370,14 @@ if __name__ == '__main__':
     config = json.load(cfgfile)
 
   date_format = '%Y-%m-%d %H:%M:%S'
-  start = datetime.strptime(config['date_start'], date_format)
-  stop = datetime.strptime(config['date_stop'], date_format)
+  start = datetime.strptime(config['start_date'], date_format)
+  stop = datetime.strptime(config['stop_date'], date_format)
   city = config['city']
-
+   
   try:
-    m0 = model_slides(config)
+    m0 = model_slides(config['model_data'])
+    m0.create_model0('ferrara', 'test1')
+    exit(1)
 
     """
     # save data

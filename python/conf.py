@@ -131,7 +131,7 @@ class conf:
         srcdata[s] *= c
     else:
       for s in src_list:
-        srcdata[s] /= len(src_list)
+        srcdata[s] *= src_list[s]['weight']
 
     # log totals for debug
     for c, v in srcdata.sum().items():
