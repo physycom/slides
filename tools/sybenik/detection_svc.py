@@ -9,8 +9,8 @@ import win32event
 import servicemanager
 
 try:
-  sys.path.append(os.path.join(os.environ['SYBENIK_WORKSPACE'], 'slides', 'tools', 'sybenik'))
-  from detection_engine import detection
+  sys.path.append(os.path.join(os.environ['SYBENIK_WORKSPACE'], 'tools', 'sybenik'))
+  from detection_engine import detector
 except Exception as e:
   raise Exception(f'detection svc : lib init failed {e}')
 
@@ -28,7 +28,7 @@ class PySvc(win32serviceutil.ServiceFramework):
       config = json.load(cin)
 
     self._svc_clock_dt = 1
-    self.det = detection(configfile=self._svc_config_file)
+    self.det = detector(configfile=self._svc_config_file)
 
 
   def SvcDoRun(self):

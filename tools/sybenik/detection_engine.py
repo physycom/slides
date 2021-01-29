@@ -1,32 +1,35 @@
-#! /usr/bin/env python3
-
 import os
+import sys
 import json
 import logging
 from datetime import datetime
 import numpy as np
+import torch
+import torch.backends.cudnn as cudnn
 
-def fake_cam_cnt(ts, maxval=100):
-  t = ts % int(24 * 60 * 60)
-  v = maxval * np.sin( t / (48 * 60 * 60) * 2 * np.pi )
-  return int(v)
 
-class detection:
+try:
+  sys.path.append(os.path.join(os.environ['SYBENIK_WORKSPACE'], 'tools', 'sybenik'))
+  from models.deepsort import DeepSort
+  from utils.detection_utils import LoadStreams
+  from utils.detection_utils import select_device, scale_coords, non_max_suppression, bbox_rel, intersects
+except Exception as e:
+  raise Exception(f'detector : lib init failed {e}')
+  
+class detector:
 
   def __init__(self, configfile):
     with open(configfile) as cin:
       config = json.load(cin)
+    
+        
     self.wdir = config['workdir']
     self.datadir = f'{self.wdir}/detection_data'
     if not os.path.exists(self.datadir): os.mkdir(self.datadir)
     logfile = f'{self.wdir}/detection-engine.log'
-    self.clock_dt = 60
-    self.fine_dt = 15
-    #self.fine_dt = self.clock_dt / 6
-    self.rec_per_pack = int(self.clock_dt / self.fine_dt)
-
+    self.clock_dt = config['clock_dt']    
     self.pending_detection = True
-
+    
     logging.basicConfig(
       filename=logfile,
       filemode='w',
@@ -35,12 +38,58 @@ class detection:
       datefmt='%y-%m-%d %H:%M:%S%z'
     )
     self.config = config
-
+    
     camdatafile = os.path.join(os.environ['SYBENIK_WORKSPACE'], 'tools', 'sybenik', 'data', 'cam_data.json')
     with open(camdatafile) as cin:
       self.camdata = json.load(cin)
+    
+    # Initialize model
+    self.device = select_device(config['yolo']['device']) # cuda device, i.e. 0 or 0,1,2,3 or cpu
+    self.half = self.device.type != 'cpu'  # half precision only supported on CUDA
+    self.model = torch.load(config['yolo']['weights'], map_location=self.device)['model'].float()  # load to FP32
+    self.model.to(self.device).eval()
+    if self.half:
+      cudnn.benchmark = True  # set True to speed up constant image size inference
+      self.model.half()  # to FP16
+    
+    # Initialize streams
+    self.view_img = False
+    self.imgsz = config['yolo']['inference_size']
+    self.sources = [f"rtsp://{config['user']}:{config['pass']}@{c['ip']}/live" for c in self.camdata]
+    self.ns = len(self.sources)
+    self.dataset = LoadStreams(self.sources, img_size=self.imgsz, buff_len = config['frame_buffer']) 
+    
+    # Initialize deepsort
+    self.deepsort =  [DeepSort(config['deepsort']['REID_CKPT'],
+                       max_dist=config['deepsort']['MAX_DIST'], 
+                       min_confidence=config['deepsort']['MIN_CONFIDENCE'],
+                       nms_max_overlap=config['deepsort']['NMS_MAX_OVERLAP'], 
+                       max_iou_distance=config['deepsort']['MAX_IOU_DISTANCE'],
+                       max_age=config['deepsort']['MAX_AGE'], 
+                       n_init=config['deepsort']['N_INIT'], 
+                       nn_budget=config['deepsort']['NN_BUDGET'],
+                       use_cuda=True) for x in range(self.ns)] 
+    
+    # Get class names
+    self.names = self.model.module.names if hasattr(self.model, 'module') else self.model.names
 
-    logging.info('init engine')
+    # Run inference
+    img = torch.zeros((1, 3, self.imgsz, self.imgsz), device=self.device)  # init img
+    _ = self.model(img.half() if self.half else img) if self.device.type != 'cpu' else None  # run once
+    
+    # Crossing variables
+    # if barrier is X axis, IN is positive y and OUT is negative y
+    self.barriers = [{} for x in range(self.ns)]
+    for i,c in enumerate(self.camdata):
+      maxw, maxh = self.dataset.dims[i]
+      for btag,bcoords in c['barriers'].items():
+        bc = bcoords['pixelcoords']
+        if 0<=bc[0]<=maxw and 0<=bc[2]<=maxw and 0<=bc[1]<=maxh and 0<=bc[3]<=maxh:
+          self.barriers[i][btag]=(((bc[0],bc[1]),(bc[2],bc[3])))
+        else:
+          logging.info('barrier is out of the image')
+    
+    logging.info('init engine done')
 
   def do_task(self):
     try:
@@ -49,53 +98,122 @@ class detection:
       if int(ts) % self.clock_dt == 0:
         if self.pending_detection:
           logging.info('performing detections')
-
-          ############## super duper fake
-          cid = 1
-          for cd in self.camdata:
-            cname = cd['name']
+          imgl, img0l = self.dataset.grab()
+          
+          for j in range(self.ns): 
+            cname = self.camdata[j]['name']
             logging.info(f'detection for : {cname}')
-            cdata = {
-              'cam_name'  : cname,
-              'timestamp' : ts,
-              'datetime'  : datetime.fromtimestamp(ts).strftime('%y%m%d %H%M%S'),
-              'counter'   : fake_cam_cnt(ts, 1000*cid+10)
-            }
-            cdatafile = f'{self.datadir}/cam_{cname}_{ts}.json'
-            with open(cdatafile, 'w') as cout:
-              json.dump(cdata, cout, indent=2)
+            img = imgl[j]    #img= 1 buffer of frames ready for net
+            img0 = img0l[j]  #img0= 1 buffer of original frames
+            img = torch.from_numpy(img).to(self.device)
+            img = img.half() if self.half else img.float()  # uint8 to fp16/32
+            img /= 255.0  # 0 - 255 to 0.0 - 1.0
+            if img.ndimension() == 3: # buffer has only 1 frame
+              break
+                
+            # Inference
+            pred = self.model(img)[0]
+            # Apply NMS
+            pred = non_max_suppression(pred, 
+                     conf_thres = self.config['yolo']['nms_conf'], 
+                     iou_thres = self.config['yolo']['nms_iou'],
+                     classes=self.config['yolo']['classes'], #0 is people only. change deepsort model if need to track other things
+                     agnostic=self.config['yolo']['nms_agnostic'])
+            # Detection output
+            prev_outputs, cam_output, bar_output = [], [], {}
+            for btag in self.barriers[j]:
+              bar_output[btag] = {'IN':0,'OUT':0}
+            
+            # Process detections
+            logging.info(f'tracking for : {cname}')
+            for i, det in enumerate(pred):  # detections per buffer
+              im0 = img0[i].copy()
+              
+              if det is not None and len(det)!=0:
+                cam_output.append(len(det)) # detections counts
+                # Rescale boxes from img_size to im0 size
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                bbox_xywh = []
+                confs = []
+                
+                # Adapt detections to deep sort input format
+                for *xyxy, conf, cls in det:
+                  img_h, img_w, _ = im0.shape
+                  x_c, y_c, bbox_w, bbox_h = bbox_rel(img_w, img_h, *xyxy)
+                  obj = [x_c, y_c, bbox_w, bbox_h]
+                  bbox_xywh.append(obj)
+                  confs.append([conf.item()])
+                  
+                xywhs = torch.Tensor(bbox_xywh)
+                confss = torch.Tensor(confs)
 
-            bdata = []
-            for btag in cd['barriers']:
-              for n in range(self.rec_per_pack):
-                tf = int(ts - (self.rec_per_pack - n)*self.fine_dt)
-                bdata.append({
-                  'cam_name'  : cname,
-                  'timestamp' : tf,
-                  'datetime'  : datetime.fromtimestamp(tf).strftime('%y%m%d %H%M%S'),
-                  'counter'   : {
-                    btag : { 'IN' : fake_cam_cnt(tf, 100*cid+10), 'OUT' : fake_cam_cnt(tf, 100*cid+60)}
-                  }
-                })
+                # Pass detections to deepsort
+                outputs = self.deepsort[j].update(xywhs, confss, im0)
+                
+                # Calculate barrier crossing
+                if i==0:
+                  prev_outputs = outputs
+                else:
+                  if len(outputs)!=0 and len(prev_outputs)!=0:
+                    prev_ids = prev_outputs[:,-1]
+                    for output in outputs:
+                      identity = output[-1]
+                      if identity in prev_ids:
+                        prev_output = prev_outputs[prev_outputs[:,-1]==identity][0]
+                        c_p_x, c_p_y = (prev_output[0] + prev_output[2]) //2, (prev_output[1] + prev_output[3]) //2
+                        c_x, c_y = (output[0] + output[2]) //2, (output[1] + output[3]) //2
+                                                 
+                        for btag,bcoords in self.barriers[j].items():
+                          crossing = intersects(bcoords,((c_p_x,c_p_y),(c_x,c_y)))
+                          if crossing == 1:
+                            bar_output[btag]['IN'] +=1
+                          elif crossing == -1:
+                            bar_output[btag]['OUT'] +=1      
+                  prev_outputs = outputs    
+                  
+            if len(cam_output) == 0:
+              cam_output=[0]
+            # Write results to file
+            if self.config['json_dump'] == True: 
+              logging.info(f'dumping for : {cname}')
+              cam_dump = {
+                'cam_name'  : cname,
+                'timestamp' : ts,
+                'datetime'  : datetime.fromtimestamp(ts).strftime('%y%m%d %H%M%S'),
+                'counter'   : {'MEAN':np.mean(cam_output),
+                               'MAX':int(np.max(cam_output)),
+                               'MIN':int(np.min(cam_output))}
+              }
+              bar_dump = {
+                'cam_name'  : cname,
+                'timestamp' : ts,
+                'datetime'  : datetime.fromtimestamp(ts).strftime('%y%m%d %H%M%S'),
+                'counter'   : bar_output
+              }
+              cdatafile = f'{self.datadir}/cam_{cname}_{ts}.json'
               bdatafile = f'{self.datadir}/bar_{cname}_{ts}.json'
+              with open(cdatafile, 'w') as cout:
+                json.dump(cam_dump, cout, indent=2)
               with open(bdatafile, 'w') as cout:
-                json.dump(bdata, cout, indent=2)
-            cid += 1
-          ###############
-
+                json.dump(bar_dump, cout, indent=2)
+              
           self.pending_detection = False
       else:
         if not self.pending_detection:
           self.pending_detection = True
     except Exception as e:
-      print(e)
+      print('runtime error: ',e)
+
+
 
 if __name__ == '__main__':
+  
   import argparse
   parser = argparse.ArgumentParser()
-  parser.add_argument('-c', '--cfile', help='engine config json', required=True)
+  parser.add_argument('-c', '--cfile', help='engine config json', default='data/detection-cfg.json')
+#  parser.add_argument('-c', '--cfile', help='engine config json', required=True)
   args = parser.parse_args()
 
-  det = detection(configfile=args.cfile)
+  det = detector(configfile=args.cfile)
   while True:
     det.do_task()
