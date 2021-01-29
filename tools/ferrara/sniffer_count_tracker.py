@@ -27,8 +27,12 @@ if __name__ == '__main__':
   freq = f'{args.dt}s'
   if args.range == '':
     tok = args.input[:args.input.rfind('.')].split('_')
-    start = datetime.strptime(tok[-2], dt_fmt)
-    stop = datetime.strptime(tok[-1], dt_fmt)
+    try:
+      start = datetime.strptime(tok[-2], dt_fmt)
+      stop = datetime.strptime(tok[-1], dt_fmt)
+    except:
+      start = datetime.strptime(tok[-3], dt_fmt)
+      stop = datetime.strptime(tok[-2], dt_fmt)
   else:
     start = datetime.strptime(args.range.split('|')[0], dt_fmt)
     stop = datetime.strptime(args.range.split('|')[1], dt_fmt)
@@ -36,13 +40,14 @@ if __name__ == '__main__':
 
   df = pd.read_csv(args.input, sep=';')
   df.date_time = pd.to_datetime(df.date_time)
+  df.date_time = df.date_time.dt.tz_localize(None)
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
   df = df[ df.kind == args.dev ]
 
-  dft = df[['mac_address','date_time','station_name']]
+  dft = df[['mac-address','date_time','station_name']]
 
   pid_l = []
-  for pid, dfg in dft.groupby(['mac_address']):
+  for pid, dfg in dft.groupby(['mac-address']):
     df_date = [ t.date() for t in dfg.date_time ]
     s = dfg.shape[0]
     days = len(np.unique(df_date))
@@ -84,7 +89,7 @@ if __name__ == '__main__':
   fig, ax = plt.subplots(1, 1, figsize=(w, h), dpi=d)
   plt.title(f'Device type {args.dev}, top {args.top} ids with at least 2 stations presence movements')
   for p in top_pids:
-    dft_p = dft[dft.mac_address==p]
+    dft_p = dft[dft['mac-address']==p]
     plt.plot(dft_p.date_time,dft_p.station_name,linewidth=1,alpha=0.6)
   plt.tight_layout()
 

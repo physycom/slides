@@ -18,7 +18,7 @@ if __name__ == '__main__':
   parser.add_argument('-c', '--csv', help='input average sniffer data regexp', required=True)
   parser.add_argument('-c1', '--csv1', help='second input average sniffer data file', default='')
   parser.add_argument('-s', '--show', help='display', action='store_true')
-  parser.add_argument('-f', '--filter', nargs='+', help='list of filters', default=[])
+  parser.add_argument('-f', '--filter', nargs='+', help='list of sniffer filters', default=[])
   parser.add_argument('-tt', '--time_ticks', help='set time spacing between ticks', type=int, default=300)
   parser.add_argument('-tl', '--time_labels', help='set time spacing between ticks\' labels', type=int, default=3600)
   args = parser.parse_args()
@@ -94,11 +94,13 @@ if __name__ == '__main__':
       axes[i].set_ylabel('Total Counter')
 
     plt.tight_layout()
-    fig.subplots_adjust(top=0.97)
-    plt.suptitle(f'Sniffer sensor {base}', y=0.99)
     if len(df1):
+      fig.subplots_adjust(top=0.95)
+      plt.suptitle(f'Sniffer sensor {base}\nComparison with {args.csv1}', y=0.99)
       outpng = f'{base}_second{tag}.png'
     else:
+      fig.subplots_adjust(top=0.97)
+      plt.suptitle(f'Sniffer sensor {base}', y=0.99)
       outpng = f'{base}{tag}.png'
     plt.savefig(outpng)
     if args.show: plt.show()

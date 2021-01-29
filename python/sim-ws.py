@@ -197,7 +197,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null'):
 )
 async def poly_get(request: Request, citytag: str = ''):
   client_ip = request.client.host
-  log_print('Request from {}'.format(client_ip, citytag))
+  log_print('Request from {} city {}'.format(client_ip, citytag))
 
   # init conf
   try:

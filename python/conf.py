@@ -81,7 +81,7 @@ class conf:
     max_attr = 15
     if len(attr) > max_attr:
       log_print(f'*********** Lowering attractions number to {max_attr}', self.logger)
-      attr = { k : v for k, v in list(attr.items())[:6] }
+      attr = { k : v for k, v in list(attr.items())[:max_attr] }
     conf['attractions'] = attr
 
     # blank timetable
@@ -110,19 +110,28 @@ class conf:
       params = self.ms.mod_fe.station_map
       snif_src.update({ src : snif for snif in params for src in params[snif] })
       src_num = len(snif_src)
-      #print(snif_src)
       norm_src = [ n for n, v in snif_src.items() if v == None ]
       m0_num = len(norm_src)
-      #print(norm_src)
       log_print(f'Caveat FE - src {src_num}, m0_src {m0_num}', self.logger)
       norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
       norm_wei /= ( norm_wei.sum() * src_num / m0_num )
-      #print(norm_wei)
+      for s, c in zip(norm_src, norm_wei):
+        srcdata[s] *= c
+    elif citytag == 'dubrovnik':
+      snif_src = { src : None for src in src_list }
+      params = self.ms.mod_du.source_map
+      snif_src.update({ snif : 'data' for snif in params.values() })
+      src_num = len(snif_src)
+      norm_src = [ n for n, v in snif_src.items() if v == None ]
+      m0_num = len(norm_src)
+      log_print(f'Caveat DU - src {src_num}, m0_src {m0_num}', self.logger)
+      norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
+      norm_wei /= ( norm_wei.sum() * src_num / m0_num )
       for s, c in zip(norm_src, norm_wei):
         srcdata[s] *= c
     else:
       for s in src_list:
-        srcdata[s] /= len(src_list)
+        srcdata[s] *= src_list[s]['weight']
 
     # log totals for debug
     for c, v in srcdata.sum().items():
@@ -152,8 +161,8 @@ class conf:
           'creation_dt' : self.creation_dt,
           'creation_rate' : [ v for v in tt.values() ],
           'source_location' : {
-            'lat' : src['lat'],
-            'lon' : src['lon']
+            'lat' : src_list[tag]['lat'],
+            'lon' : src_list[tag]['lon']
           },
           'pawns_from_weight': {
             'tourist' : {
@@ -184,7 +193,7 @@ class conf:
       'creation_rate' : [ int(v) for v in tt.values() ],
       'pawns' : {
         'locals' : {
-          'beta_bp_miss'   : 0, #1, #0.99,
+          'beta_bp_miss'   : 0,
           'start_node_lid' : -1,
           'dest'           : -1
         }

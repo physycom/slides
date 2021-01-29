@@ -78,6 +78,14 @@ if __name__ == '__main__':
         'Corso di p. reno /via ragno (4)',
         'Castello via martiri (1)'
       ]
+      station_list = [
+        'Ferrara-1',
+        'Ferrara-2',
+        'Ferrara-3',
+        'Ferrara-4',
+        'Ferrara-5',
+        'Ferrara-6'
+      ]
       station_filter = ' OR '.join([ f"s.station_name = '{name}'" for name in station_list ])
       query = f"""
         SELECT
@@ -91,15 +99,16 @@ if __name__ == '__main__':
       print(query)
       cursor.execute(query)
       result = cursor.fetchall()
-      print(result)
+      #print(result)
       sidconv = { v[0] : v[1] for v in result }
-      print('sid', sidconv)
+      #print('sid', sidconv)
 
       query = f"""
         SELECT
           ds.date_time as date_time,
           ds.id_device as mac_address,
-          ds.id_station as station_mysql_id
+          ds.id_station as station_mysql_id,
+          'wifi' as kind
         FROM
           DevicesStations ds
         WHERE
@@ -107,7 +116,7 @@ if __name__ == '__main__':
           AND
           (ds.id_station IN {tuple(sidconv.keys())} )
       """
-      print(query)
+      #print(query)
       #exit(1)
 
       tquery = datetime.now()

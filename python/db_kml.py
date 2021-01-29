@@ -252,9 +252,9 @@ class db_kml:
       k.replace(' ', '_') : {
         'lat' : v['lat'],
         'lon' : v['lon'],
-        'weight' : v['weight'], #0.5, #r.uniform(0, 1),
+        'weight' : v['weight'],
         'timecap' : [ 10000 ],
-        'visit_time' : v['visit_t'] #1800
+        'visit_time' : v['visit_t']
       }
       for k,v in locations.items() if v['role'] == 'attraction'
     }
@@ -262,13 +262,10 @@ class db_kml:
       k.replace(' ', '_') : {
         'lat'    : v['lat'],
         'lon'    : v['lon'],
-        'weight' : v['weight'], #1 #r.uniform(1, 2)
+        'weight' : v['weight'],
       }
       for k,v in locations.items() if v['role'] == 'source'
     }
-    #tot_w = sum([ v['weight'] for v in src.values() ])
-    #for k in src:
-    #  src[k]['weight'] /= tot_w
     log_print('Created {} attractions {} sources'.format(len(attr), len(src)), self.logger)
 
     self.cities[citytag]['attractions'] = attr
