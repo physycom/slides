@@ -249,4 +249,5 @@ if __name__ == '__main__':
       det.do_task()
 
   if 1:
-    make_cam_map(os.path.join(os.environ['SYBENIK_WORKSPACE'], 'tools', 'sybenik', 'data', 'cam_data.json')
+    make_cam_map(os.path.join(os.environ['SYBENIK_WORKSPACE'], 'tools', 'sybenik', 'data', 'cam_data.json'))
+
