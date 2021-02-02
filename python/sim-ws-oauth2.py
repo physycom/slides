@@ -15,6 +15,7 @@ import pandas as pd
 from fastapi import FastAPI, Request, HTTPException, Response
 from pydantic import BaseModel, Field
 import logging
+import glob
 
 ###############
 ### version ###
@@ -80,6 +81,7 @@ if ver == 'local':
   logger = logging.getLogger("uvicorn")
 else:
   logger = logging.getLogger("gunicorn.error")
+sim_request_id = 0
 
 class response_welcome(BaseModel):
   message : str = 'slides simulation ws'
@@ -88,6 +90,7 @@ class response_welcome(BaseModel):
 class response_sim(BaseModel):
   message : str = 'simulation OK'
   city    : str = 'city name'
+  sim_id  : int = '0'
   data    : dict = {}
 
 class body_sim(BaseModel):
@@ -155,6 +158,11 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   sampling_dt = body.sampling_dt
   log_print('Parameters {} - {} sampling {} city {}'.format(start_date, stop_date, sampling_dt, citytag))
 
+  global sim_request_id
+  sim_id = sim_request_id
+  sim_request_id += 1
+  log_print('Simulation id {} '.format(sim_id))
+
   # init conf
   try:
     cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf', 'conf.json')
@@ -187,7 +195,8 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   simconf['start_date'] = start_date
   simconf['stop_date'] = stop_date
   simconf['sampling_dt'] = sampling_dt
-  simconf['state_basename'] = wdir + '/r_{}'.format(citytag)
+  basename = wdir + '/r_{}_{}'.format(citytag, sim_id)
+  simconf['state_basename'] = basename
   simconf['enable_stats'] = True
   #simconf['explore_node'] = [0]
   confs = json.dumps(simconf)
@@ -209,9 +218,18 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
 
     ret = {
       'message' : 'simulation OK',
-      'city' : citytag,
-      'data' : pp
+      'sim_id'  : sim_id,
+      'city'    : citytag,
+      'data'    : pp
     }
+
+    if cw.remove_local_output:
+      print(basename)
+      garbage = glob.glob(f'{basename}*')
+      for trash in garbage:
+        os.remove(trash)
+      #print(garbage)
+
   else:
     raise HTTPException(status_code=501, detail='simulation init failed')
   return ret

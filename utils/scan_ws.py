@@ -123,6 +123,10 @@ if __name__ == '__main__':
 
           # make plot (only localhost scan)
           try:
+            rjson = res.json()
+            print(rjson.keys())
+            simid = rjson['sim_id']
+            
             if do_png:
               conf = f'{wsdir}/wsconf_sim_{city}.json'
               conf_clone = f'{wdir}/{sid:>04s}_conf.json'
@@ -131,19 +135,19 @@ if __name__ == '__main__':
               sim_plot(confin=conf, outpng=outpng, city=city)
 
               sd = datetime.strptime(s['start_date'], date_format).strftime(short_format)
-              popf = f'{wsdir}/r_{city}_population_{sd}.csv'
+              popf = f'{wsdir}/r_{city}_{simid}_population_{sd}.csv'
               popf_clone = f'{wdir}/{sid:>04s}_pop.csv'
               shutil.copyfile(popf, popf_clone)
               outpng = f'{wdir}/{sid:>04s}_pop.png'
               sim_plot(popin=popf, outpng=outpng, city=city)
 
-              statsf = f'{wsdir}/r_{city}_pstats_{sd}.csv'
+              statsf = f'{wsdir}/r_{city}_{simid}_pstats_{sd}.csv'
               statsf_clone = f'{wdir}/{sid:>04s}_pstats.csv'
               shutil.copyfile(statsf, statsf_clone)
               outbase = f'{wdir}/{sid:>04s}_pstats'
               sim_stats(statsin=statsf, outbase=outbase, city=city)
 
-              wroutef = f'{wsdir}/r_{city}_wrstats_{sd}.csv'
+              wroutef = f'{wsdir}/r_{city}_{simid}_wrstats_{sd}.csv'
               wroutef_clone = f'{wdir}/{sid:>04s}_wrstats.csv'
               shutil.copyfile(wroutef, wroutef_clone)
               outbase = f'{wdir}/{sid:>04s}_wrstats'
