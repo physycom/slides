@@ -277,7 +277,7 @@ class db_kml:
     if 'mid' not in city: raise Exception('mid not avalaible for {}'.format(citytag))
 
     kmlfile = self.wdir + '/attractions_{}.kml'.format(citytag)
-    if not os.path.exists(kmlfile) or True:
+    if not os.path.exists(kmlfile):
       try:
         log_print('Retrieving kml data for {}'.format(citytag), self.logger)
         url = 'https://mapsengine.google.com/map/kml?mid={}'.format(city['mid'])

@@ -17,7 +17,7 @@ services:
       - ACCESS_LOG=/output/slides_access.log
       - ERROR_LOG=/output/slides_errors.log
       - WORKERS_PER_CORE=1
-#      - USE_MAX_WORKERS=2
+      - MAX_WORKERS=5
       - TIMEOUT=300
       - HOST=0.0.0.0
       - PORT=80
