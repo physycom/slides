@@ -6,7 +6,7 @@ FROM tiangolo/uvicorn-gunicorn-fastapi:python3.7
 RUN apt update && apt upgrade -y
 RUN apt install cmake libboost-all-dev -y
 
-RUN python3 -m pip install jsonschema numpy pandas matplotlib
+RUN python3 -m pip install jsonschema numpy pandas matplotlib scipy
 RUN python3 -m pip install requests pykml pymongo mysql-connector-python-rf
 RUN python3 -m pip install python-multipart passlib[bcrypt] python-jose[cryptography]
 

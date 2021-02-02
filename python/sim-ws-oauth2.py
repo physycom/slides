@@ -158,9 +158,10 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   sampling_dt = body.sampling_dt
   log_print('Parameters {} - {} sampling {} city {}'.format(start_date, stop_date, sampling_dt, citytag))
 
-  global sim_request_id
-  sim_id = sim_request_id
-  sim_request_id += 1
+  # global sim_request_id
+  # sim_id = sim_request_id
+  # sim_request_id += 1
+  sim_id = os.getpid()
   log_print('Simulation id {} '.format(sim_id))
 
   # init conf

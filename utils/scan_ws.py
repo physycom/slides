@@ -124,7 +124,7 @@ if __name__ == '__main__':
           # make plot (only localhost scan)
           try:
             rjson = res.json()
-            print(rjson.keys())
+            #print(rjson.keys())
             simid = rjson['sim_id']
             
             if do_png:
