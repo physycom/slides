@@ -120,7 +120,12 @@ class conf:
       norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
       norm_wei /= ( norm_wei.sum() * src_num / m0_num )
       for s, c in zip(norm_src, norm_wei):
+        # log_print(f'{s}, {srcdata[s].sum()}, {c}', self.logger)
         srcdata[s] *= c
+      synth_src = [ s for s in src_list if s not in norm_src ]
+      for s in synth_src:
+        #log_print(f"{s} {src_list[s]['weight']}", self.logger)
+        srcdata[s] *= src_list[s]['weight'] / src_num * ( src_num - m0_num )
     elif citytag == 'dubrovnik':
       snif_src = { src : None for src in src_list }
       params = self.ms.mod_du.source_map
