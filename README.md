@@ -2,8 +2,10 @@
 This repo contains the codebase for SLIDES project.
 
 ### Contents
+. __Now-casting models__: a model for pedestrian mobility and mobility demand in each destination.
+. __Forecasting models__: visitors’ flows based on mobility demand computed from the experimental observations.
 
-### Launch local webservice container
+The models are provided as docker containers which exposes a series of web APIs whose OpenAPI compliant technical documentation is available at `container_ip:container_port/docs` and `container_ip:container_port/redoc`.
 
 ### Set up docker container
 We choose as build context for docker image the `docker` folder of this repo. A proper docker environment is created a the end of [`build.sh`](build.sh).
