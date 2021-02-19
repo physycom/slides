@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import re
 import json
 import argparse
 import pandas as pd
@@ -19,6 +20,7 @@ if __name__ == '__main__':
   parser.add_argument('-t', '--dt', type=int, default=300)
   parser.add_argument('-r', '--range', type=str, default='')
   parser.add_argument('-d', '--dev', type=str, default='wifi')
+  parser.add_argument('-f', '--filter', nargs='+', default=[])
   args = parser.parse_args()
   base = args.input[:args.input.find('_')]
 
@@ -87,6 +89,18 @@ if __name__ == '__main__':
   print(stats.columns)
   print(stats)
   for cid in stats.columns:
+
+    if len(args.filter):
+      typetag = 'sel_'
+      print(cid)
+      check = np.array([ re.match(f'.*{f}.*', cid) != None for f in args.filter ])
+      print(check)
+      print(check.any())
+      if not check.any():
+        continue
+    else:
+      typetag = ''
+
     try:
       ntag, lbl = cid.split('-')
     except:
@@ -109,5 +123,5 @@ if __name__ == '__main__':
   if args.show:
     plt.show()
   else:
-    plt.savefig(f'{base}_presence_{freq}.png')
+    plt.savefig(f'{base}_presence_{typetag}{freq}.png')
   plt.close()

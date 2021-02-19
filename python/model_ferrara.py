@@ -194,17 +194,18 @@ class model_ferrara():
         cursor = db.cursor()
 
         # fetch mysql station id
-        station_filter = ' OR '.join([ f"s.station_name = '{self.st_info[sid]['station_name']}'" for sid in station_list ])
+        station_filter = ' OR '.join([ f"s.station_id = '{self.st_info[sid]['station_name']}'" for sid in station_list ])
         query = f"""
           SELECT
             s.id,
-            s.station_name
+            s.station_id
+            s.address
           FROM
             Stations s
           WHERE
             {station_filter}
         """
-        #print(query)
+        print(query)
         cursor.execute(query)
         result = cursor.fetchall()
         #print(result)
@@ -221,9 +222,9 @@ class model_ferrara():
           WHERE
             (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
             AND
-            (ds.id_station IN {tuple(sidconv.keys())} )
+            (ds.id_station IN {tuple(station_list)} )
         """
-        #print(query)
+        print(query)
 
         tquery = datetime.now()
         cursor.execute(query)

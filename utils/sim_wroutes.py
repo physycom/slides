@@ -30,14 +30,16 @@ def sim_wroutes(wrin, outbase='', city='N/A'):
   dfp['attr_num'] = dfp.wr_tag.str.len() - 2
   #print(dfp)
 
-  # histo and plots
+  # histo 
+  binw_m = 1500
+  hbins = np.arange(0, dfc.length.max() + 2*binw_m, binw_m)
+
+  # plots
   fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(15, 8))
   axes = axs.flatten()
 
   # length
   ax = axes[0]
-  binw_m = 1500
-  hbins = np.arange(0, dfc.length.max() + 2*binw_m, binw_m)
   cnt, bins = np.histogram(dfc.length, bins=hbins)
   bins = bins[:-1]
   binw = (bins[1] - bins[0]) / 2

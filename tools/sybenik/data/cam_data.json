@@ -4,9 +4,13 @@
     "coords" : [43.73592, 15.88868],
     "ip"     : "10.222.12.1",
     "barriers" : {
-      "1" : {
+      "right" : {
         "geocoords"   : [0,0,0,0],
-        "pixelcoords" : [0,0,0,0]
+        "pixelcoords" : [1783,400,1675,346]
+      },
+      "left" : {
+        "geocoords"   : [0,0,0,0],
+        "pixelcoords" : [376,356,1,569]
       }
     }
   },
@@ -15,9 +19,9 @@
     "coords" : [43.7336, 15.89159],
     "ip"     : "10.222.13.1",
     "barriers" : {
-      "1" : {
+      "main" : {
         "geocoords"   : [0,0,0,0],
-        "pixelcoords" : [0,0,0,0]
+        "pixelcoords" : [491,936,1095,875]
       }
     }
   },
@@ -26,9 +30,9 @@
     "coords" : [43.73475, 15.89301],
     "ip"     : "10.222.11.1",
     "barriers" : {
-      "1" : {
+      "main" : {
         "geocoords"   : [0,0,0,0],
-        "pixelcoords" : [0,0,0,0]
+        "pixelcoords" : [595,749,1677,582]
       }
     }
   },
@@ -39,7 +43,7 @@
     "barriers" : {
       "1" : {
         "geocoords"   : [0,0,0,0],
-        "pixelcoords" : [0,0,0,0]
+        "pixelcoords" : [205,612,971,1079]
       }
     }
   }
