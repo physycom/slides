@@ -20,7 +20,7 @@ class ingestion:
     self.bckdir = f'{self.wdir}/backup_data'
     if not os.path.exists(self.bckdir): os.mkdir(self.bckdir)
     logfile = f'{self.wdir}/ingestion-engine.log'
-    self.clock_dt = 3
+    self.clock_dt = config['clock_dt']
     self.pending_ingestion = True
 
     logging.basicConfig(
@@ -108,8 +108,8 @@ class ingestion:
             db.close()
             logging.info(f'Inserted : {len(cdata)} cam data {len(bdata)} cam data ')
 
-            # for f in datafilenames:
-            #   shutil.move(f, self.bckdir)
+            for f in datafilenames:
+              shutil.move(f, self.bckdir)
 
           except Exception as e:
             print(e)
