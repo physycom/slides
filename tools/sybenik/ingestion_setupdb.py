@@ -20,7 +20,7 @@ if __name__ == '__main__':
   db = mysql.connector.connect(
     host=config['host'],
     port=config['port'],
-    database=config['database'],
+    #database=config['database'],
     user=config['user'],
     passwd=config['password']
   )
@@ -120,8 +120,8 @@ if __name__ == '__main__':
   if db_name == 'sybenik':
     query = """CREATE USER IF NOT EXISTS 'slides'@'localhost' IDENTIFIED BY 'slides2020'"""
     cursor.execute(query)
-    query = """GRANT SELECT ON sybenik.counters TO 'slides'@'localhost'"""
-    cursor.execute(query)
-    query = """FLUSH PRIVILEGES"""
-    cursor.execute(query)
+    # query = """GRANT SELECT ON sybenik.counters TO 'slides'@'localhost'"""
+    # cursor.execute(query)
+    # query = """FLUSH PRIVILEGES"""
+    # cursor.execute(query)
 
