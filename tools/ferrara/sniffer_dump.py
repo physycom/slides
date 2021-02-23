@@ -38,14 +38,15 @@ if __name__ == '__main__':
         username=      config['user'],
         password=      config['pwd'],
         authSource=    config['db'],
-        authMechanism= config['aut']
+        authMechanism= config['aut'],
+        #compressors=   'snappy',
       )
       table = config['table']
       print(f'Authentication ok')
 
       tquery = datetime.now()
       cursor = client['symfony'][table].aggregate([
-        { 
+        {
           '$match' : {
             'date_time' : {
               '$gte' : start_date,
@@ -53,11 +54,11 @@ if __name__ == '__main__':
             }
           }
         },
-        { 
-          '$group' : { 
-            '_id' : "$station_id" 
-          } 
-        } 
+        {
+          '$group' : {
+            '_id' : "$station_id"
+          }
+        }
       ])
       station_list = list(cursor)
       print(f'Retrieved stations : {station_list}')
@@ -80,7 +81,7 @@ if __name__ == '__main__':
         print(f'Data for station {stid} len {len(dfi)} in : {tchunk}')
         #print(dfi)
         df = df.append(dfi)
-      
+
       print(df)
       tquery = datetime.now() - tquery
       print(f'Received {len(df)} data in {tquery}')
