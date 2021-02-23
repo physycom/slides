@@ -10,17 +10,23 @@ if __name__ == '__main__':
   import argparse
   parser = argparse.ArgumentParser()
   parser.add_argument('-c', '--cfile', help='engine config json', required=True)
+  parser.add_argument('-db', '--dbtag', help='dbtag in config json', default='local')
   args = parser.parse_args()
 
   with open(args.cfile) as cin:
     config = json.load(cin)
 
-  config = config['db']
+  try:
+    config = config['db'][args.dbtag]
+  except Exception as e:
+    print(f'Unable to find db data : {e}')
+    exit(1)
+
   db_name = config['database']
   db = mysql.connector.connect(
     host=config['host'],
     port=config['port'],
-    database=config['database'],
+    #database=config['database'],
     user=config['user'],
     passwd=config['password']
   )
@@ -111,7 +117,9 @@ if __name__ == '__main__':
     `TIMESTAMP` INT UNSIGNED NOT NULL COMMENT 'Record unix timestamp',
     `DATETIME` TIMESTAMP NOT NULL COMMENT 'Record datetime UTC (use TIMESTAMP for queries)',
     `CAM_UID` INT NOT NULL COMMENT 'Camera unique id (join with cam_meta for queries)',
-    `COUNTER` INT NOT NULL COMMENT 'Counter value',
+    `MEAN` INT NOT NULL COMMENT 'Mean counter value',
+    `MAX` INT NOT NULL COMMENT 'Max counter value',
+    `MIN` INT NOT NULL COMMENT 'Min counter value',
     UNIQUE KEY `UID` (`TIMESTAMP`, `CAM_UID`)
   )
   """
@@ -120,8 +128,7 @@ if __name__ == '__main__':
   if db_name == 'sybenik':
     query = """CREATE USER IF NOT EXISTS 'slides'@'localhost' IDENTIFIED BY 'slides2020'"""
     cursor.execute(query)
-    query = """GRANT SELECT ON sybenik.counters TO 'slides'@'localhost'"""
-    cursor.execute(query)
-    query = """FLUSH PRIVILEGES"""
-    cursor.execute(query)
-
+    # query = """GRANT SELECT ON sybenik.counters TO 'slides'@'localhost'"""
+    # cursor.execute(query)
+    # query = """FLUSH PRIVILEGES"""
+    # cursor.execute(query)

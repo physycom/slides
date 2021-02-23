@@ -21,7 +21,7 @@ class PySvc(win32serviceutil.ServiceFramework):
 
   def __init__(self, args):
     win32serviceutil.ServiceFramework.__init__(self,args)
-    self._svc_config_file = os.path.join(os.environ['SYBENIK_WORKSPACE'], 'slides', 'sybenik', 'data', 'ingestion-cfg.json')
+    self._svc_config_file = os.path.join(os.environ['SYBENIK_WORKSPACE'], 'tools', 'sybenik', 'data', 'ingestion-cfg.json')
     self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
 
     with open(self._svc_config_file) as cin:
