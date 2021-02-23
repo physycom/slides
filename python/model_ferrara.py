@@ -198,14 +198,14 @@ class model_ferrara():
         query = f"""
           SELECT
             s.id,
-            s.station_id
+            s.station_id,
             s.address
           FROM
             Stations s
           WHERE
             {station_filter}
         """
-        print(query)
+        #print(query)
         cursor.execute(query)
         result = cursor.fetchall()
         #print(result)
@@ -224,7 +224,7 @@ class model_ferrara():
             AND
             (ds.id_station IN {tuple(station_list)} )
         """
-        print(query)
+        #print(query)
 
         tquery = datetime.now()
         cursor.execute(query)

@@ -43,24 +43,53 @@ if __name__ == '__main__':
       table = config['table']
       print(f'Authentication ok')
 
-      if args.dev == 'both':
-        cursor = client['symfony'][table].find({
-          'date_time' : {
-            '$gte' : start_date,
-            '$lt'  : stop_date
+      # .aggregate({
+      #   'date_time' : {
+      #     '$gte' : start_date,
+      #     '$lt'  : stop_date
+      #   }
+      # })
+      tquery = datetime.now()
+      cursor = client['symfony'][table].aggregate([
+        { 
+          '$match' : {
+            'date_time' : {
+              '$gte' : start_date,
+              '$lt'  : stop_date
+            }
           }
-        })
-      else:
+        },
+        { 
+          '$group' : { 
+            '_id' : "$station_id" 
+          } 
+        } 
+      ])
+      station_list = list(cursor)
+      print(f'Retrieved stations : {station_list}')
+
+      df = pd.DataFrame()
+      for s in station_list:
+        stid = s['_id']
+        print(f'Query for station {stid}')
+        tchunk = datetime.now()
         cursor = client['symfony'][table].find({
           'date_time' : {
             '$gte' : start_date,
             '$lt'  : stop_date
           },
-          'kind' : args.dev
+          'station_id' : stid
         })
 
-      df = pd.DataFrame(list(cursor))
-      print(f'Received {len(df)} data')
+        dfi = pd.DataFrame(list(cursor))
+        tchunk = datetime.now() - tchunk
+        print(f'Data for station {stid} len {len(dfi)} in : {tchunk}')
+        #print(dfi)
+        df = df.append(dfi)
+      
+      print(df)
+      tquery = datetime.now() - tquery
+      print(f'Received {len(df)} data in {tquery}')
 
     elif args.db == 'mysql':
       config = config['mysql']
