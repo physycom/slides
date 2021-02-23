@@ -43,12 +43,6 @@ if __name__ == '__main__':
       table = config['table']
       print(f'Authentication ok')
 
-      # .aggregate({
-      #   'date_time' : {
-      #     '$gte' : start_date,
-      #     '$lt'  : stop_date
-      #   }
-      # })
       tquery = datetime.now()
       cursor = client['symfony'][table].aggregate([
         { 
