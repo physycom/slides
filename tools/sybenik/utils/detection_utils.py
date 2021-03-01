@@ -54,7 +54,7 @@ def clip_coords(boxes, img_shape):
     boxes[:, 1].clamp_(0, img_shape[0])  # y1
     boxes[:, 2].clamp_(0, img_shape[1])  # x2
     boxes[:, 3].clamp_(0, img_shape[0])  # y2
-    
+
 def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     # Rescale coords (xyxy) from img1_shape to img0_shape
     if ratio_pad is None:  # calculate from img0_shape
@@ -84,13 +84,13 @@ def box_iou(box1, box2):
     def box_area(box):
         # box = 4xn
         return (box[2] - box[0]) * (box[3] - box[1])
-      
+
     area1 = box_area(box1.T)
     area2 = box_area(box2.T)
     # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
     inter = (torch.min(box1[:, None, 2:], box2[:, 2:]) - torch.max(box1[:, None, :2], box2[:, :2])).clamp(0).prod(2)
     return inter / (area1[:, None] + area2 - inter)  # iou = inter / (area1 + area2 - inter)
-  
+
 def non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, merge=False, classes=None, agnostic=False):
     # Performs Non-Maximum Suppression (NMS) on inference results
     nc = prediction[0].shape[1] - 5  # number of classes
@@ -187,12 +187,12 @@ def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scale
     shape = img.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):
         new_shape = (new_shape, new_shape)
-        
+
     # Scale ratio (new / old)
     r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
     if not scaleup:  # only scale down, do not scale up (for better test mAP)
         r = min(r, 1.0)
-        
+
     # Compute padding
     ratio = r, r  # width, height ratios
     new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
@@ -205,54 +205,65 @@ def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scale
         ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
     dw /= 2  # divide padding into 2 sides
     dh /= 2
-    
+
     if shape[::-1] != new_unpad:  # resize
         img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
     img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
-    
+
     return img, ratio, (dw, dh)
-    
+
 class LoadStreams:  # multiple IP or RTSP cameras
-    def __init__(self, sources, img_size=640, buff_len=100):
+    def __init__(self, sources, img_size=640, buff_len=100, logger=None):
         self.mode = 'images'
         self.img_size = img_size
+        self.logger = logger
 
         n = len(sources)
         self.buff_len = buff_len
         self.imgs = [deque(maxlen=buff_len) for x in range(n)] # ring buffer
-        self.dims = [None] * n
+        self.dims = [(0,0)] * n
+        self.status = [True] * n
         self.sources = sources
         for i, s in enumerate(sources):
             # Start the thread to read frames from the video stream
-            print('%g/%g: %s... ' % (i + 1, n, s), end='')
+            self.logger.info('%g/%g: %s... ' % (i + 1, n, s))
             cap = cv2.VideoCapture(eval(s) if s.isnumeric() else s)
-            assert cap.isOpened(), 'Failed to open %s' % s
-            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = cap.get(cv2.CAP_PROP_FPS) % 100
-            _, img = cap.read()  # guarantee first frame
-            self.imgs[i].append(img)
-            self.dims[i] = (w,h)
-            thread = Thread(target=self.update, args=([i, cap]), daemon=True)
-            print(' success (%gx%g at %.2f FPS).' % (w, h, fps))
-            thread.start()            
+            if cap is None or not cap.isOpened():
+              self.logger.info(f'failed to open {s}')
+              self.status[i] = False
+            else:
+              w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+              h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+              fps = cap.get(cv2.CAP_PROP_FPS) % 100
+              _, img = cap.read()  # guarantee first frame
+              self.imgs[i].append(img)
+              self.dims[i] = (w,h)
+              thread = Thread(target=self.update, args=([i, cap]), daemon=True)
+              self.logger.info('LoadStream %s success (%gx%g at %.2f FPS).' % (s, w, h, fps))
+              thread.start()
 
     def update(self, index, cap):
         # Read next stream frame in a daemon thread
         while cap.isOpened():
-            _, img = cap.read()
+          r, img = cap.read()
+          if r:
             self.imgs[index].append(img)
             time.sleep(0.001)  # wait time
+          else:
+            self.status[index] = False
+            print(f'error with source {self.sources[index]}')
+            return
 
 
     def grab(self):
         imgl, img0l = [], []
         for i,s in enumerate(self.sources):
+          if self.status[i]:
             img0 = self.imgs[i].copy()
             img0 = np.asarray(img0,dtype= np.uint8)
-            
+
             # Letterbox
             img = [letterbox(x, new_shape=self.img_size)[0] for x in img0]
             # Stack
@@ -262,5 +273,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
             img = np.ascontiguousarray(img)
             imgl.append(img)
             img0l.append(img0)
-
+          else:
+            imgl.append(-1)
+            img0l.append(-1)
         return  imgl, img0l
