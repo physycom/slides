@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
   ave = ave[ ave.station_id != '4' ] # fix for missing data in dataset *****************
   #print(ave)
-  
+
   dfave = ave.groupby(['station_id', 'wday', 'time']).mean()
   #print(dfave)
   smooths = {}
@@ -122,7 +122,7 @@ if __name__ == '__main__':
   tave = datetime.now() - tnow
   print(f'Averaging done in {tave} for {smooths.keys()}')
   print(smooths.keys())
-  
+
 
   """
   Evaluate functional distance wrt ave signals
@@ -226,7 +226,11 @@ if __name__ == '__main__':
     for s, v in selection.items() }
     ptag = 'pc'
   for s in selection:
-    dft = fullt[s]
+    try:
+      dft = fullt[s]
+    except:
+      print(f'Plot: station {s} not available')
+      continue
     dft = dft[ (dft.index >= selection[s]['start']) & (dft.index < selection[s]['stop']) ]
 
     fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10))

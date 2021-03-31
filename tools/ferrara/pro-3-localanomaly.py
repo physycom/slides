@@ -31,6 +31,14 @@ class cg():
   AVE  = 2
   HIGH = 3
 
+kpi_thresh = {
+  cg.LOW  : 1.,
+  #cg.AVE  : 'gray',
+  cg.AVE  : 0,
+  cg.HIGH : 1.
+}
+
+
 kpi_colors = {
   cg.LOW  : 'blue',
   #cg.AVE  : 'gray',
@@ -56,6 +64,7 @@ if __name__ == '__main__':
   parser.add_argument('-tl', '--time_labels', help='set time spacing between ticks\' labels', type=int, default=3600)
   args = parser.parse_args()
 
+  # inputs and plot ticks manipulations
   filein = args.data
   base = filein[:filein.rfind('/')]
   tok = filein[:filein.find('/')].split('_')
@@ -86,6 +95,7 @@ if __name__ == '__main__':
     dt_lbls = dt_ticks
   print(f'Data sampling {fine_freq_s}. Ticks sampling {dt_ticks} u {tus}. Labels sampling {dt_lbls} u {lus}')
 
+  # parsing input counters file
   stats = pd.read_csv(filein, sep=';', parse_dates=['time'], index_col='time')
   stats.index = stats.index.time
   print('stats\n', stats)
@@ -93,8 +103,8 @@ if __name__ == '__main__':
   stats.columns = tuplecol
 
   """
-  Groupby station_id and compute per day (or other criteria) mean signal.
   Perform moving average to remove fluctuations.
+  Groupby station_id and compute per day (or other criteria) mean signal.
   """
   tnow = datetime.now()
   ave = stats.copy()
@@ -149,7 +159,8 @@ if __name__ == '__main__':
   print(f'Averaging done in {tave} for {smooths.keys()}')
 
   """
-  Rebuild full-time dataframe
+  Evaluate several timeseries differences and compute stats to define
+  data-driven thresholds for anomaly coefficient
   """
   datetime_fmt = '%Y-%m-%d %H:%M:%S'
   fullt = {}
@@ -199,20 +210,15 @@ if __name__ == '__main__':
     diff_smooth = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( diff ) * np.fft.fft(kern) )))
     l1d_ave = diff_smooth.mean()
     l1d_std = diff_smooth.std()
-    l1d_thresh_up = l1d_ave + l1d_std
-    l1d_thresh_down = l1d_ave - l1d_std
-    #l1d_thresh = diff_smooth.copy()
-    #l1d_thresh[ l1d_thresh < l1d_thresh | ] = 0
+    l1d_thresh_up = l1d_ave + kpi_thresh[cg.HIGH] * l1d_std
+    l1d_thresh_down = l1d_ave - kpi_thresh[cg.LOW] * l1d_std
+    print(f'Station {s} : LOW {l1d_thresh_down} HIGH {l1d_thresh_up}')
     dft['l1_diff'] = diff
     dft['l1_diff_smooth'] = diff_smooth
-    #dft['l1_diff_thresh'] = l2d_thresh
 
-    kpi = np.zeros(len(dft))
-    kpi[ dft.l1_diff_smooth < l1d_thresh_down ] = cg.LOW
-    kpi[ dft.l1_diff_smooth > l1d_thresh_down ] = cg.AVE
-    kpi[ dft.l1_diff_smooth > l1d_thresh_up ]   = cg.HIGH
-    dft['l1_kpi'] = kpi
-    #print(kpi)
+    dft['l1_kpi'] = cg.LOW
+    dft.loc[ dft.l1_diff_smooth > l1d_thresh_down, 'l1_kpi'] = cg.AVE
+    dft.loc[ dft.l1_diff_smooth > l1d_thresh_up, 'l1_kpi'] = cg.HIGH
 
     fullt[s] = dft
     flustats[s] = {
@@ -267,12 +273,16 @@ if __name__ == '__main__':
         'stop' : datetime.strptime(v['stop'], datetime_fmt)
       }
     for s, v in selection.items() }
-    ptag = 'pc'
+    ptag = args.plotconf.split('_')[1].split('.')[0]
   for s in selection:
-    dft = fullt[s]
+    try:
+      dft = fullt[s]
+    except:
+      print(f'Plot: station {s} not available')
+      continue
     dft = dft[ (dft.index >= selection[s]['start']) & (dft.index < selection[s]['stop']) ]
 
-    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10))
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10), sharex=True)
     ts = [ t.timestamp() for t in dft.index ]
     ts_ticks = ts[::tus]
     ts_lbl = [ t.strftime('%a %d %H:%M') for t in dft.index ]
@@ -280,7 +290,7 @@ if __name__ == '__main__':
     ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
     axes = axs[0]
 #    axes.plot(ts, dft.cnt.values, '-o', label=s, markersize=4)
-    axes.plot(ts, dft.cnt_smooth.values, 'y-o', label=f'Data', markersize=4)
+    axes.plot(ts, dft.cnt_smooth.values, 'r-o', label=f'Data', markersize=4)
 #    axes.plot(ts, dft.ave_cnt.values, 'r--', label='ave')
     axes.plot(ts, dft.ave_day_cnt.values, 'b--', label='Daily average data')
 
@@ -288,26 +298,26 @@ if __name__ == '__main__':
       axes.axvspan(t-0.5*fine_freq_s, t+0.5*fine_freq_s, facecolor=data_colors[kpi], alpha=0.3)
 
     axes.set_xticks(ts_ticks)
-    axes.set_xticklabels(ts_lbl, rotation=45)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
     axes.grid()
     axes.legend()
-    axes.set_xlabel(f'Daytime Wday DD HH:MM (Ticks Sampling {dt_ticks} s)')
     axes.set_ylabel('Counter')
 
     axes = axs[1]
-    l2d_thresh_up = flustats[s]['l1_thr_up']
-    l2d_thresh_down = flustats[s]['l1_thr_down']
+    thresh_up = flustats[s]['l1_thr_up']
+    thresh_down = flustats[s]['l1_thr_down']
     #axes.plot(ts, dft.l2_diff.values, 'b-o', label=f'Station {s} l2_diff', markersize=4)
     axes.plot(ts, dft.l1_diff_smooth.values, 'g-o', label=f'Fluctuations', markersize=4)
     #axes.plot(ts, dft.l2_diff_thresh.values, 'g-o', label=f'Station {s} l2_diff', markersize=4)
-    axes.axhspan(axes.get_ylim()[0], 1*l1d_thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3)
-    axes.axhspan(l1d_thresh_down, l1d_thresh_up, facecolor=kpi_colors[cg.AVE] , alpha=0.3)
-    axes.axhspan(l1d_thresh_up, axes.get_ylim()[1], facecolor=kpi_colors[cg.HIGH] , alpha=0.3)
+    axes.axhspan(axes.get_ylim()[0], thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3, label=f'LOW < ave - {kpi_thresh[cg.LOW]} stddev')
+    axes.axhspan(thresh_down, thresh_up, facecolor=kpi_colors[cg.AVE] , alpha=0.3)
+    axes.axhspan(thresh_up, axes.get_ylim()[1], facecolor=kpi_colors[cg.HIGH] , alpha=0.3, label=f'HIGH > ave + {kpi_thresh[cg.HIGH]} stddev')
+
     axes.set_xticks(ts_ticks)
-    axes.set_xticklabels(ts_lbl, rotation=45)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
     axes.grid()
     axes.legend()
-    axes.set_xlabel('Day YY-MM-DD')
+    axes.set_xlabel(f'Daytime [Wday DD HH:MM] (Ticks Sampling {dt_ticks} s)')
     axes.set_ylabel('Anomaly coefficient [au]')
 
     plt.tight_layout()

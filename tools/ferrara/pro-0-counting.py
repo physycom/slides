@@ -19,7 +19,6 @@ if __name__ == '__main__':
   parser.add_argument('-fs', '--fine_sampling', type=int, default=600)
   parser.add_argument('-in', '--interpolation', choices=['lin', 'no'], default='lin')
   parser.add_argument('-a', '--aggr', choices=['rec', 'uniq'], default='uniq')
-  parser.add_argument('-pc', '--plotconf', default='')
 
   args = parser.parse_args()
   fine_freq = f'{args.fine_sampling}s'
@@ -37,14 +36,27 @@ if __name__ == '__main__':
     stop = datetime.strptime(tok[-2], dt_fmt)
 
   try:
-    df = pd.read_csv(filein, sep=';', usecols=['mac-address', 'date_time', 'station_name', 'kind'], parse_dates=['date_time'], index_col='date_time')
+    df = pd.read_csv(filein, sep=';', usecols=['mac-address', 'date_time', 'station_name', 'kind'], parse_dates=['date_time'], index_col='date_time', engine='c')
     df = df.rename(columns={'mac-address':'mac_address'})
+    old_format = True
   except:
-    df = pd.read_csv(filein, sep=';', usecols=['mac_address', 'date_time', 'station_name', 'kind'], parse_dates=['date_time'], index_col='date_time')
+    # new format support
+    old_format = False
+    df = pd.read_csv(filein, sep=';', usecols=['mac_address', 'date_time', 'station_name', 'kind'], parse_dates=['date_time'], index_col='date_time', engine='c')
   df['wday'] = [ t.strftime('%a') for t in df.index ]
   df['date'] = df.index.date
   df['time'] = df.index.time
-  df['station_id'] = df.station_name.str.split('-', expand=True)[1]
+
+  if 1 and old_format:
+    print(f'**** WARNING FILTERING FERRARA STATIONS')
+    df = df[ df.station_name.str.startswith('Ferrara-') ]
+
+  try:
+    df['station_id'] = df.station_name.str.split('-', expand=True)[1]
+  except:
+    #old format support
+    df['station_id'] = df.station_name.str.extract(r'.*\((\d)\)')
+
   #print(df)
   print(df[['wday', 'date', 'station_name', 'station_id']])
 
