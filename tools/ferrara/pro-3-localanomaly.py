@@ -38,7 +38,6 @@ kpi_thresh = {
   cg.HIGH : 1.
 }
 
-
 kpi_colors = {
   cg.LOW  : 'blue',
   #cg.AVE  : 'gray',
@@ -207,9 +206,11 @@ if __name__ == '__main__':
 
     # diff
     diff = dft.cnt - dft.ave_day_cnt
-    diff_smooth = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( diff ) * np.fft.fft(kern) )))
+    # diff_smooth = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( diff ) * np.fft.fft(kern) )))
+    diff_smooth = dft.cnt_smooth - dft.ave_day_cnt
     l1d_ave = diff_smooth.mean()
     l1d_std = diff_smooth.std()
+
     l1d_thresh_up = l1d_ave + kpi_thresh[cg.HIGH] * l1d_std
     l1d_thresh_down = l1d_ave - kpi_thresh[cg.LOW] * l1d_std
     print(f'Station {s} : LOW {l1d_thresh_down} HIGH {l1d_thresh_up}')
@@ -290,9 +291,9 @@ if __name__ == '__main__':
     ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
     axes = axs[0]
 #    axes.plot(ts, dft.cnt.values, '-o', label=s, markersize=4)
-    axes.plot(ts, dft.cnt_smooth.values, 'r-o', label=f'Data', markersize=4)
+    axes.plot(ts, dft.cnt_smooth.values, 'r-o', label=f'Data smooth', markersize=4)
 #    axes.plot(ts, dft.ave_cnt.values, 'r--', label='ave')
-    axes.plot(ts, dft.ave_day_cnt.values, 'b--', label='Daily average data')
+    axes.plot(ts, dft.ave_day_cnt.values, 'b--', label='Daily average data smooth')
 
     for t, kpi in zip(ts, dft['l1_kpi'].values): # special effects...SKADOUSH!!!
       axes.axvspan(t-0.5*fine_freq_s, t+0.5*fine_freq_s, facecolor=data_colors[kpi], alpha=0.3)
@@ -307,7 +308,8 @@ if __name__ == '__main__':
     thresh_up = flustats[s]['l1_thr_up']
     thresh_down = flustats[s]['l1_thr_down']
     #axes.plot(ts, dft.l2_diff.values, 'b-o', label=f'Station {s} l2_diff', markersize=4)
-    axes.plot(ts, dft.l1_diff_smooth.values, 'g-o', label=f'Fluctuations', markersize=4)
+    axes.plot(ts, dft.l1_diff.values, '-o', color='purple', label=f'Fluctuations', markersize=4)
+    axes.plot(ts, dft.l1_diff_smooth.values, 'g-o', label=f'Fluctuations smooth', markersize=4)
     #axes.plot(ts, dft.l2_diff_thresh.values, 'g-o', label=f'Station {s} l2_diff', markersize=4)
     axes.axhspan(axes.get_ylim()[0], thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3, label=f'LOW < ave - {kpi_thresh[cg.LOW]} stddev')
     axes.axhspan(thresh_down, thresh_up, facecolor=kpi_colors[cg.AVE] , alpha=0.3)
