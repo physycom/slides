@@ -59,9 +59,10 @@ if __name__ == '__main__':
               f'sim_{sid:04d}' : {
                 'start_date'  : t0.strftime(date_format),
                 'stop_date'   : t1.strftime(date_format),
-                'sampling_dt' : 300,
+                'sampling_dt' : 900,
                 'city'        : city,
-                'url'         : url
+                'url'         : url,
+                'out_type'    : 'both',
               }
             })
             sid += 1
@@ -126,7 +127,7 @@ if __name__ == '__main__':
             rjson = res.json()
             #print(rjson.keys())
             simid = rjson['sim_id']
-            
+
             if do_png:
               conf = f'{wsdir}/wsconf_sim_{city}.json'
               conf_clone = f'{wdir}/{sid:>04s}_conf.json'

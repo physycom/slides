@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 import logging
 import glob
 
@@ -90,12 +90,21 @@ class response_sim(BaseModel):
   message : str = 'simulation OK'
   city    : str = 'city name'
   sim_id  : int = '0'
-  data    : dict = {}
+  poly_cnt : dict
+  grid_cnt : dict
 
+response_output_types = ['both', 'poly', 'grid']
 class body_sim(BaseModel):
   start_date : str
   stop_date : str
   sampling_dt : int
+  out_type : str
+
+  @validator('out_type')
+  def out_type_in_list(cls, v):
+    if v not in response_output_types:
+      raise ValueError(f'Field "out_type" must one of {response_output_types}')
+    return v
 
 class response_poly(BaseModel):
   message : str = 'geojson OK'
@@ -117,6 +126,8 @@ def log_print(s):
 #################
 #### APIs ####
 #################
+
+DEFAULT_GRID_SIZE = 100
 
 @app.get('/',
   response_model=response_welcome,
@@ -155,7 +166,8 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   start_date = body.start_date
   stop_date = body.stop_date
   sampling_dt = body.sampling_dt
-  log_print('Parameters {} - {} sampling {} city {}'.format(start_date, stop_date, sampling_dt, citytag))
+  out_type = body.out_type
+  log_print('Parameters {} - {} sampling {} city {} out_type {}'.format(start_date, stop_date, sampling_dt, citytag, out_type))
 
   sim_id = os.getpid()
   log_print('Simulation id {} '.format(sim_id))
@@ -195,7 +207,16 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   basename = wdir + '/r_{}_{}'.format(citytag, sim_id)
   simconf['state_basename'] = basename
   simconf['enable_stats'] = True
-  #simconf['explore_node'] = [0]
+
+  simconf['enable_netstate'] = True
+  simconf['enable_influxgrid'] = True
+  simconf['state_grid_cell_m'] = DEFAULT_GRID_SIZE
+
+  if out_type == 'poly':
+    simconf['enable_influxgrid'] = False
+  elif out_type == 'grid':
+    simconf['enable_netstate'] = False
+
   confs = json.dumps(simconf)
   with open(wdir + '/wsconf_sim_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
   #print(confs, flush=True)
@@ -208,17 +229,38 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
     s.run()
     log_print('{} simulation done in {}'.format(citytag, datetime.now() - tsim))
 
-    pof = s.poly_outfile()
-    log_print('Polyline counters output file : {}'.format(pof))
-    dfp = pd.read_csv(pof, sep = ';')
-    pp = { t : { i : int(x) for i, x in enumerate(v[1:]) if x != 0 } for t, v in zip(dfp.timestamp, dfp.values)}
+    if out_type == 'poly' or out_type == 'both':
+      pof = s.poly_outfile()
+      log_print('Polyline counters output file : {}'.format(pof))
+      dfp = pd.read_csv(pof, sep = ';')
+      poly_cnt = { t : { i : int(x) for i, x in enumerate(v[1:]) if x != 0 } for t, v in zip(dfp.timestamp, dfp.values)}
+    else:
+      poly_cnt = None
 
-    ret = {
-      'message' : 'simulation OK',
-      'sim_id'  : sim_id,
-      'city'    : citytag,
-      'data'    : pp
-    }
+    if out_type == 'grid' or out_type == 'both':
+      pof = s.grid_outfile()
+      log_print('Grid counters output file : {}'.format(pof))
+
+      dfp = pd.read_csv(pof, sep=" |,|=", usecols=[2,4,5], engine='python', dtype=int)
+      dfp.columns = ['id', 'cnt', 'timestamp']
+      dfp.timestamp = (dfp.timestamp * 1e-9).astype('int')
+      #dfp['datetime'] = pd.to_datetime(dfp.timestamp, unit='s', utc=True).dt.tz_convert('Europe/Rome')
+      dfp = dfp[ dfp.cnt != 0 ]
+      #print(dfp)
+      grid_cnt = {
+          int(ts) : { str(gid) : int(val) for gid, val in dft[['id', 'cnt']].astype(int).values }
+        for ts, dft in dfp.groupby('timestamp')
+      }
+    else:
+      grid_cnt = None
+
+    ret = response_sim(
+      message='simulation OK',
+      city=citytag,
+      sim_id=sim_id,
+      poly_cnt=poly_cnt,
+      grid_cnt=grid_cnt,
+    )
 
     if cw.remove_local_output:
       print(basename)
@@ -314,6 +356,9 @@ async def grid_get(request: Request, citytag: str = ''):
 
   with open(cw.cparams[citytag]) as tin:
     simconf = json.load(tin)
+
+  simconf['state_grid_cell_m'] = DEFAULT_GRID_SIZE
+
   confs = json.dumps(simconf)
   with open(wdir + '/wsconf_grid_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
   #print(confs, flush=True)
@@ -323,8 +368,7 @@ async def grid_get(request: Request, citytag: str = ''):
   if s.is_valid():
     base =  wdir + '/grid_{}'.format(citytag)
     geojf = base + '.geojson'
-    if not os.path.exists(geojf):
-      s.dump_grid_geojson(geojf)
+    s.dump_grid_geojson(geojf)
     with open(geojf) as gin:
       geoj = json.load(gin)
     ret = {

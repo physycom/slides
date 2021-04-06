@@ -249,7 +249,7 @@ class model_ferrara():
   def map_station_to_source(self):
     stations = pd.DataFrame.from_dict(self.st_info).transpose()
     stations = stations.drop(columns=['cluster'])
-    
+
     map_center = stations[['latitude', 'longitude']].mean().values
     sourcemap = defaultdict(lambda: 'none')
     sourcemap.update({ i : k for k, v in self.station_map.items() for i in v })
@@ -320,7 +320,7 @@ if __name__ == '__main__':
   with open(args.cfg) as f:
     config = json.load(f)
 
-  mfe = model_ferrara(config)  
+  mfe = model_ferrara(config)
 
   if 1:
     mfe.map_station_to_source()
