@@ -32,41 +32,61 @@ if __name__ == '__main__':
   wdir = base[:base.rfind('.')]
   if not os.path.exists(wdir): os.mkdir(wdir)
 
-  start_date = config['start_date']
-  stop_date  = config['stop_date']
-  day_dt = config['day_dt']
-  sim_dt = [ dtm * 60 for dtm in config['sim_dt_min'] ]
-  sim_start_times = config['sim_start_times']
   url_list = config['url_list']
   cities = config['cities']
 
-  date_format = '%Y-%m-%d %H:%M:%S'
-  short_format = '%y%m%d_%H%M%S'
-  start = datetime.strptime(start_date, date_format)
-  stop = datetime.strptime(stop_date, date_format)
-
   schedule = {}
-  t = start
   sid = 0
-  while t < stop:
+
+  if 'sim_generation' in config:
+    gencfg = config['sim_generation']
+    start_date = gencfg['start_date']
+    stop_date  = gencfg['stop_date']
+    day_dt = gencfg['day_dt']
+    sim_dt = [ dtm * 60 for dtm in gencfg['sim_dt_min'] ]
+    sim_start_times = gencfg['sim_start_times']
+
+    date_format = '%Y-%m-%d %H:%M:%S'
+    short_format = '%y%m%d_%H%M%S'
+    start = datetime.strptime(start_date, date_format)
+    stop = datetime.strptime(stop_date, date_format)
+
+    t = start
+    while t < stop:
+      for url in url_list:
+        for tstart in sim_start_times:
+          for sdt in sim_dt:
+            for city in cities:
+              t0 = datetime.strptime(t.strftime('%Y-%m-%d {}'.format(tstart)), date_format)
+              t1 = t0 + timedelta(seconds=sdt)
+              schedule.update({
+                f'sim_{sid:04d}' : {
+                  'start_date'  : t0.strftime(date_format),
+                  'stop_date'   : t1.strftime(date_format),
+                  'sampling_dt' : 900,
+                  'city'        : city,
+                  'url'         : url,
+                  'out_type'    : 'both',
+                }
+              })
+              sid += 1
+      t += timedelta(days=day_dt)
+
+  if 'sim_list' in config:
     for url in url_list:
-      for tstart in sim_start_times:
-        for sdt in sim_dt:
-          for city in cities:
-            t0 = datetime.strptime(t.strftime('%Y-%m-%d {}'.format(tstart)), date_format)
-            t1 = t0 + timedelta(seconds=sdt)
-            schedule.update({
-              f'sim_{sid:04d}' : {
-                'start_date'  : t0.strftime(date_format),
-                'stop_date'   : t1.strftime(date_format),
-                'sampling_dt' : 900,
-                'city'        : city,
-                'url'         : url,
-                'out_type'    : 'both',
-              }
-            })
-            sid += 1
-    t += timedelta(days=day_dt)
+      for city in cities:
+        for start, stop in config['sim_list']:
+          schedule.update({
+            f'sim_{sid:04d}' : {
+              'start_date'  : start,
+              'stop_date'   : stop,
+              'sampling_dt' : 900,
+              'city'        : city,
+              'url'         : url,
+              'out_type'    : 'both',
+            }
+          })
+          sid += 1
 
   with open(wdir + '/scan_schedule.json', 'w') as sout:
     json.dump(schedule, sout, indent=2)
