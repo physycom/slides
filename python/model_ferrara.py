@@ -99,7 +99,7 @@ class model_ferrara():
     df['wday'] = [ t.strftime('%a') for t in df.index ]
     df['date'] = df.index.date
     df['time'] = df.index.time
-    df['station_id'] = df.station_name.str[-2:-1]
+    df['station_id'] = df.station_name.str.extract(r'.*-(\d)')
     #print(df)
 
     tnow = datetime.now()
@@ -125,13 +125,17 @@ class model_ferrara():
     cnts.index.name = 'time'
     tcounting = datetime.now() - tnow
     log_print(f'Counting done in {tcounting}', self.logger)
+    #print(cnts)
 
     # convert to source/attractions naming convention and apply station-to-source mapping
     smap = self.station_map
     data = pd.DataFrame(index=cnts.index)
     for sid, names in smap.items():
       for name in names:
-        data[name] = cnts[sid] / len(names)
+        try:
+          data[name] = cnts[sid] / len(names)
+        except Exception as e:
+          log_print(f'Error in reconstructing source {name} from sniffer {sid} : {e}', self.logger)
     #print(data)
 
     self.data = data.astype(int)
@@ -322,5 +326,13 @@ if __name__ == '__main__':
 
   mfe = model_ferrara(config)
 
-  if 1:
+  if 0:
     mfe.map_station_to_source()
+
+  if 1:
+    start = datetime.strptime(config['start_date'], mfe.date_format)
+    stop = datetime.strptime(config['stop_date'], mfe.date_format)
+    df = mfe.full_table(start, stop, 'Stazione')
+    df = mfe.full_table(start, stop, 'parcheggio_1')
+    print(df)
+
