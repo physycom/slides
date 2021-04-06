@@ -211,8 +211,15 @@ if __name__ == '__main__':
     l1d_ave = diff_smooth.mean()
     l1d_std = diff_smooth.std()
 
-    l1d_thresh_up = l1d_ave + kpi_thresh[cg.HIGH] * l1d_std
-    l1d_thresh_down = l1d_ave - kpi_thresh[cg.LOW] * l1d_std
+    l1d_centile80 = diff_smooth.quantile(.8)
+    l1d_centile20 = diff_smooth.quantile(.2)
+
+    # l1d_thresh_up = l1d_ave + kpi_thresh[cg.HIGH] * l1d_std
+    # l1d_thresh_down = l1d_ave - kpi_thresh[cg.LOW] * l1d_std
+
+    l1d_thresh_up = l1d_ave + l1d_centile80
+    l1d_thresh_down = l1d_ave - l1d_centile20
+
     print(f'Station {s} : LOW {l1d_thresh_down} HIGH {l1d_thresh_up}')
     dft['l1_diff'] = diff
     dft['l1_diff_smooth'] = diff_smooth
@@ -311,9 +318,9 @@ if __name__ == '__main__':
     axes.plot(ts, dft.l1_diff.values, '-o', color='purple', label=f'Fluctuations', markersize=4)
     axes.plot(ts, dft.l1_diff_smooth.values, 'g-o', label=f'Fluctuations smooth', markersize=4)
     #axes.plot(ts, dft.l2_diff_thresh.values, 'g-o', label=f'Station {s} l2_diff', markersize=4)
-    axes.axhspan(axes.get_ylim()[0], thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3, label=f'LOW < ave - {kpi_thresh[cg.LOW]} stddev')
+    axes.axhspan(axes.get_ylim()[0], thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3, label=f'LOW < ave - {l1d_centile20} centile')
     axes.axhspan(thresh_down, thresh_up, facecolor=kpi_colors[cg.AVE] , alpha=0.3)
-    axes.axhspan(thresh_up, axes.get_ylim()[1], facecolor=kpi_colors[cg.HIGH] , alpha=0.3, label=f'HIGH > ave + {kpi_thresh[cg.HIGH]} stddev')
+    axes.axhspan(thresh_up, axes.get_ylim()[1], facecolor=kpi_colors[cg.HIGH] , alpha=0.3, label=f'HIGH > ave + {l1d_centile80} centile')
 
     axes.set_xticks(ts_ticks)
     axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
