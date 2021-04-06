@@ -37,6 +37,8 @@ if __name__ == '__main__':
 
   schedule = {}
   sid = 0
+  date_format = '%Y-%m-%d %H:%M:%S'
+  short_format = '%y%m%d_%H%M%S'
 
   if 'sim_generation' in config:
     gencfg = config['sim_generation']
@@ -46,8 +48,6 @@ if __name__ == '__main__':
     sim_dt = [ dtm * 60 for dtm in gencfg['sim_dt_min'] ]
     sim_start_times = gencfg['sim_start_times']
 
-    date_format = '%Y-%m-%d %H:%M:%S'
-    short_format = '%y%m%d_%H%M%S'
     start = datetime.strptime(start_date, date_format)
     stop = datetime.strptime(stop_date, date_format)
 
