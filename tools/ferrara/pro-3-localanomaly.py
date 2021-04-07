@@ -32,10 +32,10 @@ class cg():
   HIGH = 3
 
 kpi_thresh = {
-  cg.LOW  : 1.,
+  cg.LOW  : 0.2,
   #cg.AVE  : 'gray',
   cg.AVE  : 0,
-  cg.HIGH : 1.
+  cg.HIGH : 0.8
 }
 
 kpi_colors = {
@@ -97,10 +97,8 @@ if __name__ == '__main__':
   # parsing input counters file
   stats = pd.read_csv(filein, sep=';', parse_dates=['time'], index_col='time')
   stats.index = stats.index.time
-  print('stats\n', stats)
   tuplecol = [ tuple(c.replace('\'', '').replace('(', '').replace(')','').replace(' ','').split(',')) for c in stats.columns ]
   stats.columns = tuplecol
-
   """
   Perform moving average to remove fluctuations.
   Groupby station_id and compute per day (or other criteria) mean signal.
@@ -114,12 +112,9 @@ if __name__ == '__main__':
   cols[-1] = 'cnt'
   ave.columns = cols
   #ave.station_id = ave.station_id.astype(int)
-  print('ave\n', ave)
   ave.date = pd.to_datetime(ave.date)
   ave['wday'] = ave.date.dt.strftime('%a')
-  #print(ave)
   dfave = ave.groupby(['station_id', 'wday', 'time']).mean()
-  #print(dfave)
   smooths = {}
   for sid, dfg in dfave.groupby(['station_id']):
     try:
@@ -150,13 +145,11 @@ if __name__ == '__main__':
     for c in dfp.columns:
       conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( dfp[c].values ) * np.fft.fft(kern) )))
       smooth[c] = conv
-    #print(smooth)
     smooth.index.name='time'
     smooth.to_csv(f'{base}/{sid}_{fine_freq}_{interp}_smooth.csv', sep=';', index=True)
     smooths[sid] = smooth
   tave = datetime.now() - tnow
   print(f'Averaging done in {tave} for {smooths.keys()}')
-
   """
   Evaluate several timeseries differences and compute stats to define
   data-driven thresholds for anomaly coefficient
@@ -175,7 +168,6 @@ if __name__ == '__main__':
     replicas = len(dft) // len(smooths[s])
 
     drange = pd.date_range(start, stop, freq='1d')[:-1] # only for stop = Y M D 00:00:00
-    #print(drange)
     drange = [ d.strftime('%a') for d in drange ]
     ave_class = [ smooths[s][wdcat[d]].values for d in drange ]
     ave_day = [ smooths[s][d].values for d in drange ]
@@ -211,16 +203,10 @@ if __name__ == '__main__':
     l1d_ave = diff_smooth.mean()
     l1d_std = diff_smooth.std()
 
-    l1d_centile80 = diff_smooth.quantile(.8)
-    l1d_centile20 = diff_smooth.quantile(.2)
+    l1d_thresh_up = diff_smooth.quantile(kpi_thresh[cg.HIGH])
+    l1d_thresh_down = diff_smooth.quantile(kpi_thresh[cg.LOW])
 
-    # l1d_thresh_up = l1d_ave + kpi_thresh[cg.HIGH] * l1d_std
-    # l1d_thresh_down = l1d_ave - kpi_thresh[cg.LOW] * l1d_std
-
-    l1d_thresh_up = l1d_ave + l1d_centile80
-    l1d_thresh_down = l1d_ave - l1d_centile20
-
-    print(f'Station {s} : LOW {l1d_thresh_down} HIGH {l1d_thresh_up}')
+    print(f'Station {s} : LOW {l1d_thresh_down:.2f}({kpi_thresh[cg.LOW]} perc) HIGH {l1d_thresh_up:.2f}({kpi_thresh[cg.HIGH]} perc)')
     dft['l1_diff'] = diff
     dft['l1_diff_smooth'] = diff_smooth
 
@@ -318,9 +304,9 @@ if __name__ == '__main__':
     axes.plot(ts, dft.l1_diff.values, '-o', color='purple', label=f'Fluctuations', markersize=4)
     axes.plot(ts, dft.l1_diff_smooth.values, 'g-o', label=f'Fluctuations smooth', markersize=4)
     #axes.plot(ts, dft.l2_diff_thresh.values, 'g-o', label=f'Station {s} l2_diff', markersize=4)
-    axes.axhspan(axes.get_ylim()[0], thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3, label=f'LOW < ave - {l1d_centile20} centile')
+    axes.axhspan(axes.get_ylim()[0], thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3, label=f'LOW < {kpi_thresh[cg.LOW]} centile')
     axes.axhspan(thresh_down, thresh_up, facecolor=kpi_colors[cg.AVE] , alpha=0.3)
-    axes.axhspan(thresh_up, axes.get_ylim()[1], facecolor=kpi_colors[cg.HIGH] , alpha=0.3, label=f'HIGH > ave + {l1d_centile80} centile')
+    axes.axhspan(thresh_up, axes.get_ylim()[1], facecolor=kpi_colors[cg.HIGH] , alpha=0.3, label=f'HIGH > {kpi_thresh[cg.HIGH]} centile')
 
     axes.set_xticks(ts_ticks)
     axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
