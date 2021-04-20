@@ -15,6 +15,8 @@ import pandas as pd
 from fastapi import FastAPI, Request, HTTPException, Response
 from pydantic import BaseModel, Field, validator
 import logging
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+import coloredlogs
 import glob
 
 ###############
@@ -77,10 +79,6 @@ app = FastAPI(
   version=ver,
   openapi_tags=tags_metadata
 )
-if ver == 'local':
-  logger = logging.getLogger("uvicorn")
-else:
-  logger = logging.getLogger("gunicorn.error")
 
 class response_welcome(BaseModel):
   message : str = 'slides simulation ws'
@@ -114,20 +112,63 @@ class response_grid(BaseModel):
   message : str = 'geojson OK'
   geojson : dict = {}
 
-##########################
-#### log function ########
-##########################
-def logs(s):
-  return '{} [sim-ws] {}'.format(datetime.now().strftime('%y%m%d %H:%M:%S'), s)
-
-def log_print(s):
-  logger.info(logs(s))
 
 #################
 #### APIs ####
 #################
 
 DEFAULT_GRID_SIZE = 100
+
+@app.on_event("startup")
+async def startup_event():
+  global logger
+
+  if ver == 'local':
+    log_folder = 'logs'
+    if not os.path.exists(log_folder): os.mkdir(log_folder)
+
+    # config logger
+    console_formatter = coloredlogs.ColoredFormatter('%(asctime)s [%(levelname)s] (%(name)s:%(funcName)s) %(message)s', "%H:%M:%S")
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(console_formatter)
+
+    time_formatter = logging.Formatter('%(asctime)s [%(levelname)s] (%(name)s:%(funcName)s) %(message)s', "%y-%m-%d %H:%M:%S")
+    time_handler = TimedRotatingFileHandler('logs/slides_ws.log', when='H', backupCount=7) # m H D : minutes hours days
+    time_handler.setFormatter(time_formatter)
+
+    # clear uvicorn logger
+    logging.getLogger("uvicorn").handlers.clear()
+    access_log = logging.getLogger("uvicorn.access")
+    access_log.handlers.clear()
+    access_log.addHandler(console_handler)
+    access_log.addHandler(time_handler)
+
+    logging.basicConfig(
+      level=logging.DEBUG,
+      handlers=[
+        time_handler,   # log file handler
+        console_handler # console stream handler
+      ]
+    )
+  else:
+    time_formatter = logging.Formatter('%(asctime)s [%(levelname)s] (%(name)s) %(message)s', "%y%m%d %H:%M:%S")
+    time_handler = TimedRotatingFileHandler('/output/logs/scrsim.log', when='H', backupCount=7) # m H D : minutes hours days
+    time_handler.setFormatter(time_formatter)
+
+    logging.basicConfig(
+      level=logging.INFO,
+      handlers=[
+        time_handler
+      ]
+    )
+
+  logging.getLogger('matplotlib').setLevel(logging.WARNING)
+  logging.getLogger('urllib3').setLevel(logging.WARNING)
+  logging.getLogger('shapely').setLevel(logging.WARNING)
+  logging.getLogger('passlib').setLevel(logging.WARNING)
+  logging.getLogger('multipart').setLevel(logging.WARNING)
+  logger = logging.getLogger('slides_ws')
+  logger.info(f'Setting logger config for version : {ver}')
 
 @app.get('/',
   response_model=response_welcome,
@@ -161,24 +202,24 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 )
 async def sim_post(body: body_sim, request: Request, citytag: str = 'null', current_user: User = Depends(get_current_active_user)):
   client_ip = request.client.host
-  log_print('Request from {} city {}'.format(client_ip, citytag))
+  logger.info(f'Request from {client_ip} city {citytag}'.format())
 
   start_date = body.start_date
   stop_date = body.stop_date
   sampling_dt = body.sampling_dt
   out_type = body.out_type
-  log_print('Parameters {} - {} sampling {} city {} out_type {}'.format(start_date, stop_date, sampling_dt, citytag, out_type))
+  logger.info(f'Parameters {start_date} - {stop_date} sampling {sampling_dt} city {citytag} out_type {out_type}')
 
   sim_id = os.getpid()
-  log_print('Simulation id {} '.format(sim_id))
+  logger.info(f'Simulation id {sim_id} ')
 
   # init conf
   try:
     cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf', 'conf.json')
     with open(cfg_file) as cin: cfg = json.load(cin)
-    cw = conf(cfg, logger)
+    cw = conf(cfg)
   except Exception as e:
-    log_print('conf init failed : {}'.format(e))
+    logger.error(f'conf init failed : {e}')
     raise HTTPException(status_code=500, detail='conf init failed : {}'.format(e))
 
   # sanity check
@@ -189,7 +230,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   try:
     simconf = cw.generate(start_date, stop_date, citytag)
   except Exception as e:
-    log_print('config generation failed : {}'.format(e))
+    logger.error(f'config generation failed : {e}')
     raise HTTPException(status_code=500, detail='conf generation failed : {}'.format(e))
 
   # set up environment and move execution to working dir
@@ -223,15 +264,15 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
 
   # run simulation
   s = simulation(confs)
-  log_print('sim info : {}'.format(s.sim_info()))
+  logger.info(f'sim info : {s.sim_info()}')
   if s.is_valid():
     tsim = datetime.now()
     s.run()
-    log_print('{} simulation done in {}'.format(citytag, datetime.now() - tsim))
+    logger.info(f'{citytag} simulation done in {datetime.now() - tsim}')
 
     if out_type == 'poly' or out_type == 'both':
       pof = s.poly_outfile()
-      log_print('Polyline counters output file : {}'.format(pof))
+      logger.info('Polyline counters output file : {pof}')
       dfp = pd.read_csv(pof, sep = ';')
       poly_cnt = { t : { i : int(x) for i, x in enumerate(v[1:]) if x != 0 } for t, v in zip(dfp.timestamp, dfp.values)}
     else:
@@ -239,7 +280,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
 
     if out_type == 'grid' or out_type == 'both':
       pof = s.grid_outfile()
-      log_print('Grid counters output file : {}'.format(pof))
+      logger.info(f'Grid counters output file : {pof}')
 
       dfp = pd.read_csv(pof, sep=" |,|=", usecols=[2,4,5], engine='python', dtype=int)
       dfp.columns = ['id', 'cnt', 'timestamp']
@@ -279,7 +320,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
 )
 async def poly_get(request: Request, citytag: str = ''):
   client_ip = request.client.host
-  log_print('Request from {}'.format(client_ip, citytag))
+  logger.info(f'Request from {client_ip}:{citytag}')
 
   # init conf
   try:
@@ -288,7 +329,7 @@ async def poly_get(request: Request, citytag: str = ''):
     cw = conf(cfg)
 
   except Exception as e:
-    log_print('conf generation failed : {}'.format(e))
+    logger.error(f'conf generation failed : {e}')
     raise HTTPException(status_code=500, detail='grid geojson conf init failed : {}'.format(e))
 
   if citytag not in cw.cparams:
@@ -332,7 +373,7 @@ async def poly_get(request: Request, citytag: str = ''):
 )
 async def grid_get(request: Request, citytag: str = ''):
   client_ip = request.client.host
-  log_print(f'Request from {client_ip} for {citytag} grid')
+  logger.info(f'Request from {client_ip} for {citytag} grid')
 
   # init conf
   try:
@@ -341,7 +382,7 @@ async def grid_get(request: Request, citytag: str = ''):
     cw = conf(cfg)
 
   except Exception as e:
-    log_print('conf generation failed : {}'.format(e))
+    logger.error('conf generation failed : {}'.format(e))
     raise HTTPException(status_code=500, detail='grid geojson conf init failed : {}'.format(e))
 
   if citytag not in cw.cparams:

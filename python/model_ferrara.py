@@ -15,23 +15,15 @@ from collections import defaultdict
 ##########################
 #### log function ########
 ##########################
-def logs(s):
-  head = '{} [mod_fe] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
-  return head + s
-
-def log_print(s, logger = None):
-  if logger:
-    logger.info(logs(s))
-  else:
-    print(logs(s), flush=True)
+import logging
+logger = logging.getLogger('mod_fe')
 
 #############################
 #### model ferrara class ####
 #############################
 class model_ferrara():
 
-  def __init__(self, config, logger = None):
-    self.logger = logger
+  def __init__(self, config):
     self.got_data = False
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
@@ -50,7 +42,7 @@ class model_ferrara():
     if len(self.station_map) == 0:
       raise Exception(f'No station to generate')
 
-    log_print(f'Generating model FE for {tag}', self.logger)
+    logger.info(f'Generating model FE for {tag}')
 
     if len(self.data) == 0:
       self.count_raw(start, stop)
@@ -90,7 +82,7 @@ class model_ferrara():
     """
     Perform device id counting with fine temporal scale
     """
-    #log_print(f'Counting raw data', self.logger)
+    #logger.info(f'Counting raw data')
 
     df = self.get_data_mongo(start, stop)
 
@@ -124,7 +116,7 @@ class model_ferrara():
     cnts = cnts.reset_index().interpolate(limit=10000, limit_direction='both').set_index('index')
     cnts.index.name = 'time'
     tcounting = datetime.now() - tnow
-    log_print(f'Counting done in {tcounting}', self.logger)
+    logger.info(f'Counting done in {tcounting}')
     #print(cnts)
 
     # convert to source/attractions naming convention and apply station-to-source mapping
@@ -135,7 +127,7 @@ class model_ferrara():
         try:
           data[name] = cnts[sid] / len(names)
         except Exception as e:
-          log_print(f'Error in reconstructing source {name} from sniffer {sid} : {e}', self.logger)
+          logger.error(f'Error in reconstructing source {name} from sniffer {sid} : {e}')
     #print(data)
 
     self.data = data.astype(int)
@@ -183,7 +175,7 @@ class model_ferrara():
 
         df.index = pd.to_datetime(df.date_time)
         tquery = datetime.now() - tnow
-        log_print(f'Received {len(df)} mongo data in {tquery}', self.logger)
+        logger.debug(f'Received {len(df)} mongo data in {tquery}')
         #print(df)
       else:
         # mysql
@@ -234,7 +226,7 @@ class model_ferrara():
         cursor.execute(query)
         result = cursor.fetchall()
         tquery = datetime.now() - tquery
-        log_print(f'Received {len(result)} mysql data in {tquery}', self.logger)
+        logger.info(f'Received {len(result)} mysql data in {tquery}')
         if len(result) == 0:
           raise Exception(f'[mod_fe] Empty mysql query result')
 

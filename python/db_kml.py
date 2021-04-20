@@ -18,23 +18,15 @@ r.seed(19)
 ##########################
 #### log function ########
 ##########################
-def logs(s):
-  head = '{} [db_kml] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
-  return head + s
-
-def log_print(s, logger = None):
-  if logger:
-    logger.info(logs(s))
-  else:
-    print(logs(s), flush=True)
+import logging
+logger = logging.getLogger('db_kml')
 
 ##############
 ### KML db ###
 ##############
 class db_kml:
 
-  def __init__(self, config, logger = None):
-    self.logger = logger
+  def __init__(self, config):
     self.wdir = config['work_dir']
     if not os.path.exists(self.wdir): os.mkdir(self.wdir)
 
@@ -56,7 +48,7 @@ class db_kml:
     self.cities = cities
 
   def parse_kml(self, kmlfile, citytag):
-    log_print('Parse {} info from local kml {}'.format(citytag, kmlfile), self.logger)
+    logger.info('Parse {} info from local kml {}'.format(citytag, kmlfile))
 
     with open(kmlfile) as f:
       folder = xmlparser.parse(f).getroot().Document.Folder
@@ -266,7 +258,7 @@ class db_kml:
               'actv_dt' : None,
               'close_d' : None,
             }
-    log_print('Parsed {} locations for {}'.format(len(locations), citytag), self.logger)
+    logger.info(f'Parsed {len(locations)} locations for {citytag}')
 
     attr = {
       k.replace(' ', '_') : {
@@ -289,7 +281,7 @@ class db_kml:
       }
       for k,v in locations.items() if v['role'] == 'source'
     }
-    log_print('Parsed {} attractions {} sources'.format(len(attr), len(src)), self.logger)
+    logger.info(f'Parsed {len(attr)} attractions {len(src)} sources')
 
     self.cities[citytag]['attractions'] = attr
     self.cities[citytag]['sources'] = src
@@ -332,13 +324,13 @@ class db_kml:
 
       # skip closing days
       if 'all' in cds or weekday in cds:
-        log_print(f'Attraction {name} is closed')
+        logger.warning(f'Attraction {name} is closed')
         continue
 
       # skip non-active date if needed
       if not 'all' in active_dt:
         if not today in active_dt:
-          log_print(f'Attraction {name} is not in active day')
+          logger.warning(f'Attraction {name} is not in active day')
           continue
 
       capacity = row['capacity']
@@ -374,9 +366,9 @@ class db_kml:
         }
       })
 
-    log_print(f'Created {len(attr)} attractions', self.logger)
+    logger.info(f'Created {len(attr)} attractions')
     for i,k in enumerate(attr.keys()):
-      log_print(f'Attraction #{i} tag {k}', self.logger)
+      logger.debug(f'Attraction #{i} tag {k}')
 
     #print(json.dumps(attr, indent=2))
     return attr
@@ -388,7 +380,7 @@ class db_kml:
     kmlfile = self.wdir + '/attractions_{}.kml'.format(citytag)
     if not os.path.exists(kmlfile) or True:
       try:
-        log_print('Retrieving kml data for {}'.format(citytag), self.logger)
+        logger.debug('Retrieving kml data for {}'.format(citytag))
         url = 'https://mapsengine.google.com/map/kml?mid={}'.format(city['mid'])
         response = get(url)
         if response.status_code != 200:
@@ -416,7 +408,7 @@ class db_kml:
 
   def get_sources(self, citytag):
     if not self.cities[citytag]['valid']:
-      self.get_data(citytag)
+      self.retrieve_data(citytag)
     return self.cities[citytag]['sources']
 
 if __name__ == '__main__':
