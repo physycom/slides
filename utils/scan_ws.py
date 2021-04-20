@@ -3,7 +3,6 @@
 import os
 import sys
 import json
-import argparse
 from datetime import datetime, timedelta
 from requests import post, get
 import shutil
@@ -18,6 +17,7 @@ except Exception as e:
 
 if __name__ == '__main__':
   # parse cli and config
+  import argparse
   parser = argparse.ArgumentParser()
   parser.add_argument('-c', '--config', required=True)
   parser.add_argument('-m', '--mode', default='sim', choices=['geo', 'sim'])

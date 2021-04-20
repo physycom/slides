@@ -86,3 +86,4 @@ docker/.ssh/
 
 # Debug
 work_*/
+*.html

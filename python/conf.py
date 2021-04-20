@@ -62,7 +62,7 @@ class conf:
 
     self.config = config
 
-    
+
   def generate(self, start_date, stop_date, citytag):
     #print(citytag)
     if citytag not in self.cparams:
@@ -81,7 +81,7 @@ class conf:
     conf['state_basename'] = self.wdir + '/{}'.format(citytag)
 
     # attractions
-    attr = self.dbk.get_attractions(citytag)
+    attr = self.dbk.get_attractions(citytag, start)
     max_attr = 15
     if len(attr) > max_attr:
       log_print(f'*********** Lowering attractions number to {max_attr}', self.logger)
@@ -162,7 +162,7 @@ class conf:
       }
       tt.update(rates)
 
-      beta_bp = 0.2
+      beta_bp = 0.5
       speed_mps = 1.0
 
       sources.update({

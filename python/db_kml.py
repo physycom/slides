@@ -77,6 +77,8 @@ class db_kml:
               weight = float(data.value.text)
             elif data.attrib['name'] == 'visit_time [h]':
               visit_t = int(float(data.value.text) * 3600)
+            elif data.attrib['name'] == 'opening_timetables':
+              open_tt = data.value.text
 
           role = 'none'
           point = [p for p in pm.getchildren() if p.tag.endswith('Point')]
@@ -91,7 +93,9 @@ class db_kml:
               'lat'     : float(lat),
               'lon'     : float(lon),
               'weight'  : weight,
-              'visit_t' : visit_t
+              'visit_t' : visit_t,
+              'open_tt' : open_tt,
+              'close_d' : None,
             }
     elif citytag == 'dubrovnik':
       for pm in folder.Placemark:
@@ -120,7 +124,9 @@ class db_kml:
             'lat'     : float(lat),
             'lon'     : float(lon),
             'weight'  : weight,
-            'visit_t' : visit_t
+            'visit_t' : visit_t,
+            'open_tt' : None,
+            'close_d' : None,
           }
     elif citytag == 'ferrara':
       for pm in folder.Placemark:
@@ -135,6 +141,12 @@ class db_kml:
               weight = float(data.value.text)
             elif data.attrib['name'] == 'visit_time [h]':
               visit_t = int(float(data.value.text) * 3600)
+            elif data.attrib['name'] == 'opening_timetables':
+              open_tt = data.value.text
+            elif data.attrib['name'] == 'active_dates':
+              actv_dt = data.value.text
+            elif data.attrib['name'] == 'closing_days':
+              close_d = data.value.text
 
           point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
 
@@ -151,7 +163,10 @@ class db_kml:
               'lat'     : float(lat),
               'lon'     : float(lon),
               'weight'  : weight,
-              'visit_t' : visit_t
+              'visit_t' : visit_t,
+              'open_tt' : open_tt,
+              'actv_dt' : actv_dt,
+              'close_d' : close_d,
             }
     elif citytag == 'sybenik':
       for pm in folder.Placemark:
@@ -180,7 +195,10 @@ class db_kml:
               'lat'     : float(lat),
               'lon'     : float(lon),
               'weight'  : weight,
-              'visit_t' : visit_t
+              'visit_t' : visit_t,
+              'open_tt' : None,
+              'actv_dt' : None,
+              'close_d' : None,
             }
 
       #####################################################
@@ -214,7 +232,6 @@ class db_kml:
         plt.scatter(centers[:, 0], centers[:, 1], c='black', s=200, alpha=0.5)
         plt.show()
       #####################################################
-
     elif citytag == 'venezia':
       for pm in folder.Placemark:
         if pm.ExtendedData != None:
@@ -244,7 +261,10 @@ class db_kml:
               'lat'     : float(lat),
               'lon'     : float(lon),
               'weight'  : weight,
-              'visit_t' : visit_t
+              'visit_t' : visit_t,
+              'open_tt' : None,
+              'actv_dt' : None,
+              'close_d' : None,
             }
     log_print('Parsed {} locations for {}'.format(len(locations), citytag), self.logger)
 
@@ -253,8 +273,11 @@ class db_kml:
         'lat' : v['lat'],
         'lon' : v['lon'],
         'weight' : v['weight'],
-        'timecap' : [ 10000 ],
-        'visit_time' : v['visit_t']
+        'capacity' : 1000,
+        'visit_time' : v['visit_t'],
+        'opening_timetable' : v['open_tt'],
+        'closing_days' : v['close_d'],
+        'active_dates' : v['actv_dt'],
       }
       for k,v in locations.items() if v['role'] == 'attraction'
     }
@@ -266,13 +289,99 @@ class db_kml:
       }
       for k,v in locations.items() if v['role'] == 'source'
     }
-    log_print('Created {} attractions {} sources'.format(len(attr), len(src)), self.logger)
+    log_print('Parsed {} attractions {} sources'.format(len(attr), len(src)), self.logger)
 
     self.cities[citytag]['attractions'] = attr
     self.cities[citytag]['sources'] = src
     self.cities[citytag]['valid'] = True
 
-  def get_data(self, citytag):
+  def convert_attr(self, citytag, start):
+    attr = self.cities[citytag]['attractions']
+    df = pd.DataFrame.from_dict(attr).T
+    df['name'] = df.index
+    #print(df)
+
+    df = df.fillna(value={
+      'opening_timetable' : '00:00-23:59',
+      'closing_days' : '',
+      'active_dates' : 'all',
+    })
+    #print(df)
+
+    today = start.strftime('%Y-%m-%d')
+    #print(today)
+    weekday = start.strftime('%a').lower()
+    #print(weekday)
+    attr_sampling_dt = 3600
+    #print(attr_sampling_dt)
+
+    attr = {}
+    for i, row in df.iterrows():
+      name = row['name']
+      #print(i, name)
+      lat = row['lat']
+      lon = row['lon']
+      weight = row['weight']
+      vtime = row['visit_time']
+      ott = [ range.split('-') for range in row['opening_timetable'].split('|') ]
+      cds = row['closing_days'].split('|')
+      active_dt = row['active_dates'].split('|')
+      #print(ott)
+      #print(cds)
+      #print(active_dt)
+
+      # skip closing days
+      if 'all' in cds or weekday in cds:
+        log_print(f'Attraction {name} is closed')
+        continue
+
+      # skip non-active date if needed
+      if not 'all' in active_dt:
+        if not today in active_dt:
+          log_print(f'Attraction {name} is not in active day')
+          continue
+
+      capacity = row['capacity']
+      #print(f'weekday {weekday} in {cds} = {closed}')
+
+      # evaluate low level timetable
+      self.time_format = '%H:%M'
+      tstart = datetime.strptime('00:00', self.time_format)
+      dt = timedelta(seconds=attr_sampling_dt)
+      tt_len = int(24 * 60 * 60 / attr_sampling_dt )
+      #print(f'{tstart} @ {dt} size {tt_len}')
+      tt = {
+        tstart + i * dt : 0
+        for i in range(tt_len)
+      }
+      #for t, v in tt.items(): print(t,v)
+      for ti, tf in ott:
+        d_i = datetime.strptime(ti, self.time_format)
+        d_f = datetime.strptime(tf, self.time_format)
+        tt.update({ t : capacity for t in tt if d_i <= t < d_f })
+        #for t, v in tt.items(): print(t,v)
+      #print(tt)
+      timecap = list(tt.values())
+
+      # write low level attraction json format
+      attr.update({
+        name : {
+          'lat'        : lat,
+          'lon'        : lon,
+          'weight'     : weight,
+          'timecap'    : timecap,
+          'visit_time' : vtime
+        }
+      })
+
+    log_print(f'Created {len(attr)} attractions', self.logger)
+    for i,k in enumerate(attr.keys()):
+      log_print(f'Attraction #{i} tag {k}', self.logger)
+
+    #print(json.dumps(attr, indent=2))
+    return attr
+
+  def retrieve_data(self, citytag):
     city = self.cities[citytag]
     if 'mid' not in city: raise Exception('mid not avalaible for {}'.format(citytag))
 
@@ -299,10 +408,11 @@ class db_kml:
     self.parse_kml(kmlfile, citytag)
     #os.remove(kmlfile)
 
-  def get_attractions(self, citytag):
+  def get_attractions(self, citytag, start):
     if not self.cities[citytag]['valid']:
-      self.get_data(citytag)
-    return self.cities[citytag]['attractions']
+      self.retrieve_data(citytag)
+    attr = self.convert_attr(citytag, start)
+    return attr
 
   def get_sources(self, citytag):
     if not self.cities[citytag]['valid']:
