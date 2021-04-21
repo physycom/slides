@@ -158,6 +158,12 @@ async def startup_event():
     time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
     time_handler.setFormatter(time_formatter)
 
+    # clear uvicorn logger
+    logging.getLogger("gunicorn").handlers.clear()
+    access_log = logging.getLogger("gunicorn.access")
+    access_log.handlers.clear()
+    access_log.addHandler(time_handler)
+
     logging.basicConfig(
       level=logging.INFO,
       handlers=[
@@ -275,7 +281,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
 
     if out_type == 'poly' or out_type == 'both':
       pof = s.poly_outfile()
-      logger.info('Polyline counters output file : {pof}')
+      logger.info(f'Polyline counters output file : {pof}')
       dfp = pd.read_csv(pof, sep = ';')
       poly_cnt = { t : { i : int(x) for i, x in enumerate(v[1:]) if x != 0 } for t, v in zip(dfp.timestamp, dfp.values)}
     else:

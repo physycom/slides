@@ -86,7 +86,8 @@ class db_kml:
               'lon'     : float(lon),
               'weight'  : weight,
               'visit_t' : visit_t,
-              'open_tt' : open_tt,
+              'open_tt' : None,
+              'actv_dt' : None,
               'close_d' : None,
             }
     elif citytag == 'dubrovnik':
@@ -118,6 +119,7 @@ class db_kml:
             'weight'  : weight,
             'visit_t' : visit_t,
             'open_tt' : None,
+            'actv_dt' : None,
             'close_d' : None,
           }
     elif citytag == 'ferrara':
