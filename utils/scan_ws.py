@@ -98,6 +98,7 @@ if __name__ == '__main__':
     wsdir = wsc['work_dir']
     print(f'Found local ws data in {wsdir}, pngs enabled.')
     do_png = True
+    do_png = False
   except Exception as e:
     print(f'Unable to locate ws working dir, skipping pngs, err : {e}')
     do_png = False

@@ -16,7 +16,7 @@ def sim_folium_heat(geogridfile, griddatafile):
   geogrid['centroid'] = geogrid.to_crs(epsg=3857).geometry.centroid.to_crs(epsg=4326)
   geogrid['cen_lat'] = geogrid['centroid'].y
   geogrid['cen_lon'] = geogrid['centroid'].x
-  print(geogrid)
+  #print(geogrid)
 
   with open(griddatafile) as gin:
     griddata = json.load(gin)['grid_cnt']
@@ -30,19 +30,19 @@ def sim_folium_heat(geogridfile, griddatafile):
   gridcnt = pd.DataFrame.from_dict(griddata)
   #gridcnt['norm_cnt'] = (gridcnt.cnt - gridcnt.cnt.min()) / (gridcnt.cnt.max() - gridcnt.cnt.min())
   gridcnt['norm_cnt'] = gridcnt.cnt / gridcnt.cnt.max()
-  print(gridcnt)
+  #print(gridcnt)
   gridcnt = gridcnt.merge(geogrid[['id', 'cen_lat', 'cen_lon']], left_on='cell_id', right_on='id')
-  print(gridcnt)
+  #print(gridcnt)
 
   time_label = []
   data = []
   for ts, dfg in gridcnt.groupby('timestamp'):
-    dt = f"{pd.to_datetime(ts, unit='s').tz_localize('utc').tz_convert('Europe/Rome')}"
+    dt = str(pd.to_datetime(ts, unit='s').tz_localize('utc').tz_convert('Europe/Rome'))
     time_label.append(dt)
     data.append(dfg[['cen_lat', 'cen_lon', 'norm_cnt']].values.tolist())
-    print(dt, dfg.cnt.sum())
+    #print(dt, dfg.cnt.sum())
 
-  print(time_label)
+  #print(time_label)
   #print(data)
   #exit()
 
@@ -63,7 +63,7 @@ def sim_folium_heat(geogridfile, griddatafile):
   s, w = geogrid[['cen_lat', 'cen_lon']].min()
   n, e = geogrid[['cen_lat', 'cen_lon']].max()
   m.fit_bounds([ [s,w], [n,e] ])
-  m.save(f'{griddatafile}.html')
+  m.save(griddatafile + '.html')
   # FloatImage
 
 if __name__ == '__main__':

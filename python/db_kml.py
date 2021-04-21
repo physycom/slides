@@ -89,6 +89,7 @@ class db_kml:
               'open_tt' : None,
               'actv_dt' : None,
               'close_d' : None,
+              'cap'     : 1000,
             }
     elif citytag == 'dubrovnik':
       for pm in folder.Placemark:
@@ -121,6 +122,7 @@ class db_kml:
             'open_tt' : None,
             'actv_dt' : None,
             'close_d' : None,
+            'cap'     : 1000,
           }
     elif citytag == 'ferrara':
       for pm in folder.Placemark:
@@ -141,6 +143,8 @@ class db_kml:
               actv_dt = data.value.text
             elif data.attrib['name'] == 'closing_days':
               close_d = data.value.text
+            elif data.attrib['name'] == 'capacity':
+              cap = int(float(data.value.text))
 
           point = [ p for p in pm.getchildren() if p.tag.endswith('Point') ]
 
@@ -161,6 +165,7 @@ class db_kml:
               'open_tt' : open_tt,
               'actv_dt' : actv_dt,
               'close_d' : close_d,
+              'cap'     : cap,
             }
     elif citytag == 'sybenik':
       for pm in folder.Placemark:
@@ -193,6 +198,7 @@ class db_kml:
               'open_tt' : None,
               'actv_dt' : None,
               'close_d' : None,
+              'cap'     : 1000,
             }
 
       #####################################################
@@ -259,6 +265,7 @@ class db_kml:
               'open_tt' : None,
               'actv_dt' : None,
               'close_d' : None,
+              'cap'     : 1000,
             }
     logger.info(f'Parsed {len(locations)} locations for {citytag}')
 
@@ -267,7 +274,7 @@ class db_kml:
         'lat' : v['lat'],
         'lon' : v['lon'],
         'weight' : v['weight'],
-        'capacity' : 1000,
+        'capacity' : v['cap'],
         'visit_time' : v['visit_t'],
         'opening_timetable' : v['open_tt'],
         'closing_days' : v['close_d'],
