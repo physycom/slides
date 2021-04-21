@@ -160,12 +160,15 @@ async def startup_event():
 
     # clear uvicorn logger
     logging.getLogger("gunicorn").handlers.clear()
+    error_log = logging.getLogger("gunicorn.error")
+    error_log.handlers.clear()
+    error_log.addHandler(time_handler)
     access_log = logging.getLogger("gunicorn.access")
     access_log.handlers.clear()
     access_log.addHandler(time_handler)
 
     logging.basicConfig(
-      level=logging.INFO,
+      level=logging.DEBUG,
       handlers=[
         time_handler
       ]
