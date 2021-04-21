@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import os
+import re
 import json
 import argparse
 import numpy as np
@@ -222,13 +223,54 @@ class model_ferrara():
         """
         #print(query)
 
-        tquery = datetime.now()
         cursor.execute(query)
         result = cursor.fetchall()
-        tquery = datetime.now() - tquery
-        logger.info(f'Received {len(result)} mysql data in {tquery}')
+        logger.info(f'Received {len(result)} mysql data')
+
         if len(result) == 0:
-          raise Exception(f'[mod_fe] Empty mysql query result')
+          logger.warning(f'mysql empty result trying retrocompatibility mode')
+
+          # fetch mysql station id
+          station_filter = ' OR '.join([ f"s.station_name LIKE '%({sid})'" for sid in station_list ])
+          #print(station_filter)
+          query = f"""
+            SELECT
+              s.id,
+              s.station_name,
+              s.address
+            FROM
+              Stations s
+            WHERE
+              {station_filter}
+          """
+          #print(query)
+          cursor.execute(query)
+          result = cursor.fetchall()
+          #print(result)
+          sidconv = { v[0] : 'Ferrara-'+ re.findall(r'.*\((\d)\)', v[1])[0] for v in result }
+          #print('sid', sidconv)
+
+          query = f"""
+            SELECT
+              ds.date_time as date_time,
+              ds.id_device as mac_address,
+              ds.id_station as station_mysql_id
+            FROM
+              DevicesStations ds
+            WHERE
+              (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
+              AND
+              (ds.id_station IN ({', '.join([ str(c) for c in sidconv.keys()])}) )
+          """
+          #print(query)
+
+          cursor.execute(query)
+          result = cursor.fetchall()
+          #print(result)
+
+          if len(result) == 0:
+            raise Exception(f'empty mysql result')
+          logger.info(f'Received (retrocompatibility) {len(result)} mysql data')
 
         df1 = pd.DataFrame(result)
         df1.columns =  cursor.column_names

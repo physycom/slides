@@ -209,9 +209,20 @@ class conf:
 
 if __name__ == '__main__':
   import argparse
+  import coloredlogs
+
   parser = argparse.ArgumentParser()
   parser.add_argument('-c', '--cfg', help='prepare config file', required=True)
   args = parser.parse_args()
+
+  console_formatter = coloredlogs.ColoredFormatter('%(asctime)s [%(levelname)s] (%(name)s:%(funcName)s) %(message)s', "%H:%M:%S")
+  console_handler = logging.StreamHandler()
+  console_handler.setFormatter(console_formatter)
+  logging.basicConfig(
+    level=logging.DEBUG,
+    handlers=[console_handler]
+  )
+  logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
   with open(args.cfg) as cfgfile:
     config = json.loads(cfgfile.read())

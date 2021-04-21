@@ -107,14 +107,14 @@ class model_slides:
       try:
         data = self.mod_fe.full_table(start, stop, tag, resampling=self.rates_dt)
       except Exception as e:
-        logger.warning(f'Model {m01} errors for {tag}, falling back to m0')
+        logger.warning(f'Model {m01} {tag} : {e}')
         data = pd.DataFrame()
     elif city == 'dubrovnik':
       m01 = 'DU'
       try:
         data = self.mod_du.full_table(start, stop, tag, resampling=self.rates_dt)
       except Exception as e:
-        logger.warning(f'Model {m01} errors for {tag}, falling back to m0')
+        logger.warning(f'Model {m01} {tag} : {e}')
         data = pd.DataFrame()
     elif 'm1' in model:
       m01 = 'm1'
