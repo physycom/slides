@@ -133,7 +133,7 @@ async def startup_event():
     console_handler.setFormatter(console_formatter)
 
     time_formatter = logging.Formatter('%(asctime)s [%(levelname)s] (%(name)s:%(funcName)s) %(message)s', "%y-%m-%d %H:%M:%S")
-    time_handler = TimedRotatingFileHandler('logs/slides_ws.log', when='H', backupCount=7) # m H D : minutes hours days
+    time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
     time_handler.setFormatter(time_formatter)
 
     # clear uvicorn logger
@@ -151,8 +151,11 @@ async def startup_event():
       ]
     )
   else:
+    log_folder = '/output/logs'
+    if not os.path.exists(log_folder): os.makedirs(log_folder)
+
     time_formatter = logging.Formatter('%(asctime)s [%(levelname)s] (%(name)s) %(message)s', "%y%m%d %H:%M:%S")
-    time_handler = TimedRotatingFileHandler('/output/logs/scrsim.log', when='H', backupCount=7) # m H D : minutes hours days
+    time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
     time_handler.setFormatter(time_formatter)
 
     logging.basicConfig(
