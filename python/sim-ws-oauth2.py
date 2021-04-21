@@ -154,18 +154,9 @@ async def startup_event():
     log_folder = '/output/logs'
     if not os.path.exists(log_folder): os.makedirs(log_folder)
 
-    time_formatter = logging.Formatter('%(asctime)s [%(levelname)s] (%(name)s) %(message)s', "%y%m%d %H:%M:%S")
+    time_formatter = logging.Formatter('%(asctime)s [%(process)d] [%(levelname)s] (%(name)s) %(message)s', "%y%m%d %H:%M:%S")
     time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
     time_handler.setFormatter(time_formatter)
-
-    # clear uvicorn logger
-    logging.getLogger("gunicorn").handlers.clear()
-    error_log = logging.getLogger("gunicorn.error")
-    error_log.handlers.clear()
-    error_log.addHandler(time_handler)
-    access_log = logging.getLogger("gunicorn.access")
-    access_log.handlers.clear()
-    access_log.addHandler(time_handler)
 
     logging.basicConfig(
       level=logging.DEBUG,
@@ -247,6 +238,10 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
 
   # set up environment and move execution to working dir
   wdir = cw.wdir
+  if not os.path.exists(wdir): os.mkdir(wdir)
+  statefiledir = f'{wdir}/statefile'
+  if not os.path.exists(statefiledir): os.makedirs(statefiledir)
+
   try:
     os.chdir(wdir)
   except:
@@ -257,7 +252,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   simconf['start_date'] = start_date
   simconf['stop_date'] = stop_date
   simconf['sampling_dt'] = sampling_dt
-  basename = wdir + '/r_{}_{}'.format(citytag, sim_id)
+  basename = statefiledir + '/r_{}_{}'.format(citytag, sim_id)
   simconf['state_basename'] = basename
   simconf['enable_stats'] = True
 
@@ -271,7 +266,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
     simconf['enable_netstate'] = False
 
   confs = json.dumps(simconf)
-  with open(wdir + '/wsconf_sim_{}.json'.format(citytag), 'w') as outc: json.dump(simconf, outc, indent=2)
+  with open(basename + '_conf.json', 'w') as outc: json.dump(simconf, outc, indent=2)
   #print(confs, flush=True)
 
   # run simulation
