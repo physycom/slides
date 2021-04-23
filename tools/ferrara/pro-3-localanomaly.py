@@ -25,6 +25,10 @@ wdcat = {
   'Sun' : 'festivi'
 }
 
+map_station = {
+  "1":"Castello, Via Martiri", "2":"Hotel Carlton", "3":"Via del Podestà", "4":"Corso di P.Reno / Via Ragno" ,
+  "5":"Piazza Trento Trieste", "6":"Piazza Stazione"
+}
 # congestion status
 class cg():
   LOW  = 1
@@ -319,3 +323,42 @@ if __name__ == '__main__':
     fig.subplots_adjust(top=0.95)
     plt.suptitle(f'Station {s} localnorm analysis, data sampling {fine_freq}', y=0.98)
     plt.savefig(f'{base}/{s}_{fine_freq}_localnorm_{ptag}.png')
+
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10), sharex=True)
+    ts = [ t.timestamp() for t in dft.index ]
+    ts_ticks = ts[::tus]
+    ts_lbl = [ t.strftime('%a %d %H:%M') for t in dft.index ]
+    ts_lbl = ts_lbl[::tus]
+    ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
+
+    axes = axs[0]
+    axes.plot(ts, dft.cnt_smooth.values, 'r-o', label=f'Data smooth', markersize=4)
+    axes.plot(ts, dft.ave_day_cnt.values, 'b--', label='Daily average data smooth')
+
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.grid(which='major')
+    axes.legend()
+    axes.set_ylabel('Counter')
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.legend()
+
+    axes = axs[1]
+    axes.plot(ts, dft.cnt_smooth.values, 'r-o', label=f'Data smooth', markersize=4)
+    axes.plot(ts, dft.ave_cnt.values, 'c--', label='Montly average data smooth')
+
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.grid(which='major')
+    axes.legend()
+    axes.set_ylabel('Counter')
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.legend()
+    axes.set_xlabel(f'Daytime [Wday DD HH:MM] (Ticks Sampling {dt_ticks} s)')
+
+    plt.tight_layout()
+    fig.subplots_adjust(top=0.95)
+    plt.suptitle(f'{map_station[s]}: plot comparison, data sampling {fine_freq}', y=0.98)
+    plt.savefig(f'{base}/{s}_{fine_freq}_comparison_{ptag}.png')
