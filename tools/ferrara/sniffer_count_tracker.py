@@ -194,7 +194,7 @@ if __name__ == '__main__':
 
   df_od['color'] = [dict_colors[i] for i in df_od['step']]
 
-  fixed_positions = {'Piazza Stazione isola (6)':(0,8), 'Hotel Carlton (2)':(2,4), 'Piazza Trento Trieste (5)':(4.5,3.5), 'Via del Podestà (3)':(3,3), 'Castello via martiri (1)':(4,5)}
+  fixed_positions = {'Piazza Stazione isola (6)':(0,8), 'Hotel Carlton (2)':(2,4), 'Piazza Trento Trieste (5)':(4.5,3.5), 'Via del Podestà (3)':(3,3), 'Castello via martiri (1)':(4,5), 'Corso di p. reno /via ragno (4)':(2.8,1.5)}
 
   for step, df in df_od.groupby(['step']):
 
