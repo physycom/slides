@@ -179,7 +179,7 @@ if __name__ == '__main__':
     norm_list.append(i[1]['n']/dict_total[i[1]['step']])
   df_od['norm'] = norm_list
 
-  decimals = 2
+  decimals = 4
   df_od['norm'] = df_od['norm'].apply(lambda x: round(x, decimals))
 
   colors = []
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     dict_edge={}
     for r in df.iterrows():
       tuple_od = (r[1]['station_name'], r[1]['next_station'])
-      dict_edge[tuple_od] = str(int(r[1]['norm']*100)) +'%'
+      dict_edge[tuple_od] = str(round(r[1]['norm']*100, 2)) +'%'
 
     station_found = []
     station_found = df.next_station.to_list() + df.station_name.to_list()
@@ -222,8 +222,8 @@ if __name__ == '__main__':
     plt.title(f'{args.dev} tracker from {start} to {stop}\nStart from {args.startStation}\nStep {step + 1}', fontweight='bold')
 
 
-    nx.draw(G, pos, with_labels=False, arrows=True, arrowsize=50, arrowstyle='fancy', edge_color =df['color'], node_size=60, font_size=12)
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=dict_edge, label_pos=0.5, font_color='black' )
+    nx.draw(G, pos, with_labels=False, arrows=True, arrowsize=20, edge_color =df['color'], node_size=60, font_size=12)
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=dict_edge, label_pos=0.3, font_color='black' )
 
     for p in pos:
       pos[p][1] += 0.1
