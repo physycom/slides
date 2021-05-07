@@ -120,7 +120,7 @@ if __name__ == '__main__':
             'username' : user,
             'password' : pwd
           },
-          timeout=180
+          timeout=300
         )
         token = res.json()['access_token']
 
@@ -139,7 +139,7 @@ if __name__ == '__main__':
               'Authorization': f'Bearer {token}'
             },
             data=json.dumps(s),
-            timeout=180
+            timeout=300
           )
           outname = f'{sid:>04s}_response.json'
 
