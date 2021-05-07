@@ -18,7 +18,7 @@ if __name__ == '__main__':
   parser.add_argument('-c', '--csv', help='input average sniffer data regexp', required=True)
   parser.add_argument('-c1', '--csv1', help='second input average sniffer data file', default='')
   parser.add_argument('-s', '--show', help='display', action='store_true')
-  parser.add_argument('-f', '--filter', nargs='+', help='list of sniffer filters', default=[])
+  parser.add_argument('-f', '--filter', nargs='+', help='list of columns filters', default=[])
   parser.add_argument('-tt', '--time_ticks', help='set time spacing between ticks', type=int, default=300)
   parser.add_argument('-tl', '--time_labels', help='set time spacing between ticks\' labels', type=int, default=3600)
   args = parser.parse_args()
@@ -80,11 +80,11 @@ if __name__ == '__main__':
       ts_lbl = [ t.strftime('%H:%M') for i, t in enumerate(df.index) ]
       ts_lbl = ts_lbl[::tus]
       ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
-      axes[i].plot(ts, df[c].values, 'b-o', label=c, markersize=4)
+      axes[i].plot(ts, df[c].values, '-o', label=c, markersize=4)
 
       if len(df1):
         ts1 = [ datetime(now.year, now.month, now.day, t.hour,t.minute,t.second).timestamp() for t in df1.index ]
-        axes[i].plot(ts1, df1[c].values, 'r--', label=f'{c}_second', markersize=3)
+        axes[i].plot(ts1, df1[c].values, '--', label=f'{c}_second', markersize=3)
 
       axes[i].set_xticks(ts_ticks)
       axes[i].set_xticklabels(ts_lbl, rotation=45)

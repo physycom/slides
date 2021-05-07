@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import os
+import re
 import json
 import argparse
 import numpy as np
@@ -15,23 +16,15 @@ from collections import defaultdict
 ##########################
 #### log function ########
 ##########################
-def logs(s):
-  head = '{} [mod_fe] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
-  return head + s
-
-def log_print(s, logger = None):
-  if logger:
-    logger.info(logs(s))
-  else:
-    print(logs(s), flush=True)
+import logging
+logger = logging.getLogger('mod_fe')
 
 #############################
 #### model ferrara class ####
 #############################
 class model_ferrara():
 
-  def __init__(self, config, logger = None):
-    self.logger = logger
+  def __init__(self, config):
     self.got_data = False
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
@@ -50,7 +43,7 @@ class model_ferrara():
     if len(self.station_map) == 0:
       raise Exception(f'No station to generate')
 
-    log_print(f'Generating model FE for {tag}', self.logger)
+    logger.info(f'Generating model FE for {tag}')
 
     if len(self.data) == 0:
       self.count_raw(start, stop)
@@ -90,7 +83,7 @@ class model_ferrara():
     """
     Perform device id counting with fine temporal scale
     """
-    #log_print(f'Counting raw data', self.logger)
+    #logger.info(f'Counting raw data')
 
     df = self.get_data_mongo(start, stop)
 
@@ -99,7 +92,7 @@ class model_ferrara():
     df['wday'] = [ t.strftime('%a') for t in df.index ]
     df['date'] = df.index.date
     df['time'] = df.index.time
-    df['station_id'] = df.station_name.str[-2:-1]
+    df['station_id'] = df.station_name.str.extract(r'.*-(\d)')
     #print(df)
 
     tnow = datetime.now()
@@ -124,14 +117,18 @@ class model_ferrara():
     cnts = cnts.reset_index().interpolate(limit=10000, limit_direction='both').set_index('index')
     cnts.index.name = 'time'
     tcounting = datetime.now() - tnow
-    log_print(f'Counting done in {tcounting}', self.logger)
+    logger.info(f'Counting done in {tcounting}')
+    #print(cnts)
 
     # convert to source/attractions naming convention and apply station-to-source mapping
     smap = self.station_map
     data = pd.DataFrame(index=cnts.index)
     for sid, names in smap.items():
       for name in names:
-        data[name] = cnts[sid] / len(names)
+        try:
+          data[name] = cnts[sid] / len(names)
+        except Exception as e:
+          logger.error(f'Error in reconstructing source {name} from sniffer {sid} : {e}')
     #print(data)
 
     self.data = data.astype(int)
@@ -179,7 +176,7 @@ class model_ferrara():
 
         df.index = pd.to_datetime(df.date_time)
         tquery = datetime.now() - tnow
-        log_print(f'Received {len(df)} mongo data in {tquery}', self.logger)
+        logger.debug(f'Received {len(df)} mongo data in {tquery}')
         #print(df)
       else:
         # mysql
@@ -226,13 +223,54 @@ class model_ferrara():
         """
         #print(query)
 
-        tquery = datetime.now()
         cursor.execute(query)
         result = cursor.fetchall()
-        tquery = datetime.now() - tquery
-        log_print(f'Received {len(result)} mysql data in {tquery}', self.logger)
+        logger.info(f'Received {len(result)} mysql data')
+
         if len(result) == 0:
-          raise Exception(f'[mod_fe] Empty mysql query result')
+          logger.warning(f'mysql empty result trying retrocompatibility mode')
+
+          # fetch mysql station id
+          station_filter = ' OR '.join([ f"s.station_name LIKE '%({sid})'" for sid in station_list ])
+          #print(station_filter)
+          query = f"""
+            SELECT
+              s.id,
+              s.station_name,
+              s.address
+            FROM
+              Stations s
+            WHERE
+              {station_filter}
+          """
+          #print(query)
+          cursor.execute(query)
+          result = cursor.fetchall()
+          #print(result)
+          sidconv = { v[0] : 'Ferrara-'+ re.findall(r'.*\((\d)\)', v[1])[0] for v in result }
+          #print('sid', sidconv)
+
+          query = f"""
+            SELECT
+              ds.date_time as date_time,
+              ds.id_device as mac_address,
+              ds.id_station as station_mysql_id
+            FROM
+              DevicesStations ds
+            WHERE
+              (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
+              AND
+              (ds.id_station IN ({', '.join([ str(c) for c in sidconv.keys()])}) )
+          """
+          #print(query)
+
+          cursor.execute(query)
+          result = cursor.fetchall()
+          #print(result)
+
+          if len(result) == 0:
+            raise Exception(f'empty mysql result')
+          logger.info(f'Received (retrocompatibility) {len(result)} mysql data')
 
         df1 = pd.DataFrame(result)
         df1.columns =  cursor.column_names
@@ -249,7 +287,7 @@ class model_ferrara():
   def map_station_to_source(self):
     stations = pd.DataFrame.from_dict(self.st_info).transpose()
     stations = stations.drop(columns=['cluster'])
-    
+
     map_center = stations[['latitude', 'longitude']].mean().values
     sourcemap = defaultdict(lambda: 'none')
     sourcemap.update({ i : k for k, v in self.station_map.items() for i in v })
@@ -320,7 +358,15 @@ if __name__ == '__main__':
   with open(args.cfg) as f:
     config = json.load(f)
 
-  mfe = model_ferrara(config)  
+  mfe = model_ferrara(config)
+
+  if 0:
+    mfe.map_station_to_source()
 
   if 1:
-    mfe.map_station_to_source()
+    start = datetime.strptime(config['start_date'], mfe.date_format)
+    stop = datetime.strptime(config['stop_date'], mfe.date_format)
+    df = mfe.full_table(start, stop, 'Stazione')
+    df = mfe.full_table(start, stop, 'parcheggio_1')
+    print(df)
+

@@ -227,8 +227,8 @@ class model_dubrovnik():
     sourcemap.update(self.source_mapid)
     #stations = stations.set_index('serial').loc[ self.source_map.keys(), :].reset_index()
     stations['source'] = stations.id.apply(lambda x: sourcemap[x])
-    stations['color'] = 'blue' 
-    stations.loc[stations.source == 'none', 'color'] = 'red' 
+    stations['color'] = 'blue'
+    stations.loc[stations.source == 'none', 'color'] = 'red'
     # stations['color'] = stations.serial.apply(lambda x: clustercol[clustermap[x]])
     print(stations)
     #stations = stations[stations.cluster != 'none']

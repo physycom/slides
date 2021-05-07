@@ -62,15 +62,24 @@ if __name__ == '__main__':
       dfp = dfg.unstack(level=1)
       dfp.index = pd.Index([ v[1] for v in dfp.index ], name='time')
       dfp.columns = [ v[1] for v in dfp.columns ]
-      dfp = dfp[['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']]
-      dfp['feriali'] = dfp[['Mon', 'Tue', 'Wed', 'Thu', 'Fri']].mean(axis=1)
-      dfp['festivi'] = dfp[['Sat', 'Sun']].mean(axis=1)
+
+      valid_days = [ d for d in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] if d in dfp.columns ]
+      valid_weekdays = [ d for d in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] if d in dfp.columns ]
+      valid_holidays = [ d for d in ['Sat', 'Sun'] if d in dfp.columns ]
+      dfp = dfp[valid_days]
+      dfp['feriali'] = dfp[valid_weekdays].mean(axis=1)
+      dfp['festivi'] = dfp[valid_holidays].mean(axis=1)
       dfp = dfp.astype(int)
       dfp.to_csv(f'{base}/{sid}_{fine_freq}_ave.csv', sep=';', index=True)
+
+      ma_width = 3 # scaled for 15min records
+      dfsmooth = dfp.rolling(ma_width, min_periods=1, center=True, closed='both').mean()
+      dfsmooth.to_csv(f'{base}/{sid}_{fine_freq}_smooth.csv', sep=';', index=True)
+
     except Exception as e:
       print(f'Error with station {sid} : {e}')
       continue
-    totaves[sid] = dfp
+    totaves[sid] = (dfp, dfsmooth)
   tave = datetime.now() - tnow
   print(f'Averaging done in {tave} for {totaves.keys()}')
 
@@ -95,7 +104,7 @@ if __name__ == '__main__':
         'stop' : datetime.strptime(v['stop'], datetime_fmt)
       }
     for s, v in selection.items() }
-    ptag = 'pc'
+    ptag = args.plotconf.split('_')[1].split('.')[0]
   wdclass = {
     'feriali' : [ 'Mon', 'Tue', 'Wed', 'Thu', 'Fri' ],
     'festivi' : [ 'Sat', 'Sun' ]
@@ -117,24 +126,42 @@ if __name__ == '__main__':
     dft.columns = ['time', 'date', 'cnt']
     dft['datetime'] = [ datetime.strptime(f'{d[1]} {t}', datetime_fmt) for t, d in dft[['time', 'date']].values ]
     dft = dft.sort_values(by=['datetime'])
-    replicas = len(dft) // len(totaves[s])
+
+    try:
+      replicas = len(dft) // len(totaves[s])
+    except:
+      print(f'Plot: Station {s} not available')
+      continue
     #print('Replicas', replicas)
 
-    drange = pd.date_range(start, stop, freq='1d')[:-1] # only for stop = Y M D 00:00:00
+    dfaverage = totaves[s][0]
+    dfsmooth = totaves[s][1]
+    tidx = pd.date_range(f'{start}', f'{stop}', freq=fine_freq)[:-1] # only for stop = Y M D 00:00:
+    drange = pd.date_range(f'{start}', f'{stop}', freq='1d')[:-1] # only for stop = Y M D 00:00:00
     #print(drange)
     drange = [ d.strftime('%a') for d in drange ]
-    ave_class = [ totaves[s][wdcat[d]].values for d in drange ]
-    ave_day = [ totaves[s][d].values for d in drange ]
+    drange = [ d for d in drange if d in dfaverage.columns ]
+
+    ave_class = [ dfaverage[wdcat[d]].values for d in drange ]
+    ave_day = [ dfaverage[d].values for d in drange ]
+    smooth_class = [ dfsmooth[wdcat[d]].values for d in drange ]
+    smooth_day = [ dfsmooth[d].values for d in drange ]
     #print(np.asarray(drange).shape)
     ave_cnt = np.concatenate(ave_class)
     ave_d_cnt = np.concatenate(ave_day)
-    tidx = pd.date_range(start, stop, freq=fine_freq)[:-1] # only for stop = Y M D 00:00:
+    smooth_cnt = np.concatenate(smooth_class)
+    smooth_d_cnt = np.concatenate(smooth_day)
+
     dfave = pd.DataFrame(ave_cnt, index=tidx, columns=['ave_cnt'])
     dfave['ave_day_cnt'] = ave_d_cnt
+    dfave['smooth_cnt'] = smooth_cnt
+    dfave['smooth_day_cnt'] = smooth_d_cnt
+
     dfs = dft[['datetime', 'cnt']].set_index('datetime')
     dft = dfave.merge(dfs, left_index=True, right_index=True)
-
     dft = dft[ (dft.index >= selection[s]['start']) & (dft.index < selection[s]['stop']) ]
+    s_start = dft.index.min()
+    s_stop = dft.index.max()
 
     fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(16, 10))
     ts = [ t.timestamp() for t in dft.index ]
@@ -146,6 +173,8 @@ if __name__ == '__main__':
     axes = axs
     axes.plot(ts, dft['cnt'].values, 'r-o', label='Data', markersize=4)
 #    axes.plot(ts, dft['ave_cnt'].values, 'r--', label='ave')
+#    axes.plot(ts, dft['ave_cnt'].values, 'r--', label='ave')
+    axes.plot(ts, dft['smooth_day_cnt'].values, 'g-', label='smooth_d')
     axes.plot(ts, dft['ave_day_cnt'].values, 'b--', label='ave_d')
     axes.set_xticks(ts_ticks)
     axes.set_xticklabels(ts_lbl, rotation=45)
@@ -156,5 +185,5 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     fig.subplots_adjust(top=0.95)
-    plt.suptitle(f'Station {s} totals', y=0.98)
+    plt.suptitle(f'Station {s} daily data vs average values {s_start} {s_stop}', y=0.98)
     plt.savefig(f'{base}/{s}_{fine_freq}_avecompare_{ptag}.png')

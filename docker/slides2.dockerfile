@@ -8,7 +8,7 @@ RUN apt install cmake libboost-all-dev -y
 
 RUN python3 -m pip install jsonschema numpy pandas matplotlib scipy
 RUN python3 -m pip install requests pykml pymongo mysql-connector-python-rf
-RUN python3 -m pip install python-multipart passlib[bcrypt] python-jose[cryptography]
+RUN python3 -m pip install python-multipart passlib[bcrypt] python-jose[cryptography] coloredlogs
 
 RUN mkdir /root/Code
 ENV WORKSPACE /root/Code
@@ -23,7 +23,7 @@ WORKDIR /root/Code
 RUN git config --global user.name "slidesmap" && git config --global user.email slidesmap@gmail.com
 RUN git clone git@github.com:physycom/sysconfig.git && git clone git@github.com:pybind/pybind11.git
 
-ENV SLIDES_VERSION "v3.1.1"
+ENV SLIDES_VERSION "v3.2.16"
 RUN \
   echo ${SLIDES_VERSION} > /slides_version && \
   git clone git@github.com:physycom/slides.git && \

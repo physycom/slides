@@ -21,15 +21,8 @@ except Exception as e:
 ##########################
 #### log function ########
 ##########################
-def logs(s):
-  head = '{} [model_slides] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
-  return head + s
-
-def log_print(s, logger = None):
-  if logger:
-    logger.info(logs(s))
-  else:
-    print(logs(s), flush=True)
+import logging
+logger = logging.getLogger('m_slides')
 
 ################
 ### utils  #####
@@ -48,8 +41,7 @@ def box_centered_kernel(tot_len, box_len):
 #############################
 class model_slides:
 
-  def __init__(self, config, logger = None):
-    self.logger = logger
+  def __init__(self, config):
     self.got_data = False
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
@@ -60,8 +52,8 @@ class model_slides:
     if not os.path.exists(self.wdir): os.mkdir(self.wdir)
 
     # init city-specific model
-    self.mod_fe = model_ferrara(config['params']['ferrara'], self.logger)
-    self.mod_du = model_dubrovnik(config['params']['dubrovnik'], self.logger)
+    self.mod_fe = model_ferrara(config['params']['ferrara'])
+    self.mod_du = model_dubrovnik(config['params']['dubrovnik'])
     self.models = {}
 
     # collect model1 filenames
@@ -74,14 +66,14 @@ class model_slides:
             try:
               city, tag, mod = f.split('.')[0].split('-')
               if mod != 'model1':
-                log_print('Model type {} not supported, skipping'.format(mod))
+                logger.error('Model type {} not supported, skipping'.format(mod))
                 continue
               #print(city, tag, mod)
               fname = os.path.join(root, *subdirs, f)
               #print(fname)
               self.import_model1(city, tag, fname)
             except Exception as e:
-              log_print('Problem parsing model1 file {} : {}'.format(f, e))
+              logger.error('Problem parsing model1 file {} : {}'.format(f, e))
               continue
 
     # collect model0 filenames
@@ -105,7 +97,7 @@ class model_slides:
   def full_table(self, start, stop, city, tag):
     #print((city, tag), self.models.keys())
     #print(self.models)
-    #log_print(f'Creating data for {city} {tag}', self.logger)
+    logger.info(f'Creating data for {city} {tag}')
     if not (city, tag) in self.models:
       self.create_model0(city, tag)
 
@@ -115,14 +107,14 @@ class model_slides:
       try:
         data = self.mod_fe.full_table(start, stop, tag, resampling=self.rates_dt)
       except Exception as e:
-        log_print(f'Model {m01} errors for {tag}, falling back to m0 : {e}', self.logger)
+        logger.warning(f'Model {m01} {tag} : {e}')
         data = pd.DataFrame()
     elif city == 'dubrovnik':
       m01 = 'DU'
       try:
         data = self.mod_du.full_table(start, stop, tag, resampling=self.rates_dt)
       except Exception as e:
-        log_print(f'Model {m01} errors for {tag}, falling back to m0 : {e}', self.logger)
+        logger.warning(f'Model {m01} {tag} : {e}')
         data = pd.DataFrame()
     elif 'm1' in model:
       m01 = 'm1'
@@ -142,11 +134,11 @@ class model_slides:
       data = self.rescale_data(start, stop, data, tot=dtot).rename(columns={'data':tag})
       #print('rescaled\n', data)
 
-    log_print(f'Data created for ({city}, {tag}) mode {m01}', self.logger)
+    logger.info(f'Data created for ({city}, {tag}) mode {m01}')
     return data
 
   def import_model1(self, city, tag, file):
-    log_print('importing model1 {}-{}'.format(city, tag), self.logger)
+    logger.debug(f'importing model1 {city}-{tag}')
     m1filename = self.wdir + '/{city}-{tag}-model1.csv'.format(city=city, tag=tag)
 
     df = pd.read_csv(file, sep=';')
@@ -157,7 +149,7 @@ class model_slides:
     }
 
   def create_model0(self, city, tag):
-    log_print('creating model0 {}-{}'.format(city, tag), self.logger)
+    logger.debug(f'creating model0 {city}-{tag}')
     m0filename = self.wdir + '/{city}-{tag}-model0.csv'.format(city=city, tag=tag)
 
     # generate unique id as seed for random superposition
@@ -206,7 +198,7 @@ class model_slides:
 
       ref_day = '1985-04-16'
       ref_curve1 = [
-        [ datetime.strptime(f'{ref_day} {t}:00', self.date_format), v] 
+        [ datetime.strptime(f'{ref_day} {t}:00', self.date_format), v]
         for t,v in [
           ['00:00', 10 ],
           ['02:00', 5  ],
@@ -220,7 +212,7 @@ class model_slides:
         ]
       ]
       ref_curve2 = [
-        [ datetime.strptime(f'{ref_day} {t}:00', self.date_format), v] 
+        [ datetime.strptime(f'{ref_day} {t}:00', self.date_format), v]
         for t,v in [
           ['00:00', 10 ],
           ['02:00', 5  ],
@@ -231,7 +223,7 @@ class model_slides:
           ['15:00', 60 ],
           ['20:00', 45 ],
           ['23:59', 10 ],
-        ]      
+        ]
       ]
       epoch = datetime.strptime(f'{ref_day} 00:00:00', self.date_format)
       x1 = [ (t - epoch).total_seconds() for t,_ in ref_curve1 ]
@@ -373,7 +365,7 @@ if __name__ == '__main__':
   start = datetime.strptime(config['start_date'], date_format)
   stop = datetime.strptime(config['stop_date'], date_format)
   city = config['city']
-   
+
   try:
     m0 = model_slides(config['model_data'])
     m0.create_model0('ferrara', 'test1')
@@ -441,4 +433,4 @@ if __name__ == '__main__':
     plt.clf()
 
   except Exception as e:
-    log_print('EXC : {}'.format(e))
+    logger.error('EXC : {}'.format(e))
