@@ -7,6 +7,7 @@ import torch
 import torchvision
 import os
 import logging
+from pythonping import ping
 
 #code partly adapted from https://github.com/mikel-brostrom/Yolov5_DeepSort_Pytorch
 
@@ -224,37 +225,53 @@ class LoadStreams:  # multiple IP or RTSP cameras
         self.buff_len = buff_len
         self.imgs = [deque(maxlen=buff_len) for x in range(n)] # ring buffer
         self.dims = [(0,0)] * n
-        self.status = [True] * n
+        self.status = [False] * n
         self.sources = sources
+        self.w,self.h = 1920, 1080
         for i, s in enumerate(sources):
             # Start the thread to read frames from the video stream
             self.logger.info('%g/%g: %s... ' % (i + 1, n, s))
-            cap = cv2.VideoCapture(eval(s) if s.isnumeric() else s)
-            if cap is None or not cap.isOpened():
-              self.logger.info(f'failed to open {s}')
-              self.status[i] = False
-            else:
-              w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-              h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-              fps = cap.get(cv2.CAP_PROP_FPS) % 100
-              _, img = cap.read()  # guarantee first frame
-              self.imgs[i].append(img)
-              self.dims[i] = (w,h)
-              thread = Thread(target=self.update, args=([i, cap]), daemon=True)
-              self.logger.info('LoadStream %s success (%gx%g at %.2f FPS).' % (s, w, h, fps))
-              thread.start()
+            self.dims[i] = (self.w,self.h)
+            thread = Thread(target=self.update, args=([i]), daemon=True)
+            thread.start()
 
-    def update(self, index, cap):
+    def update(self, index):
+        c_status = False # camera open
+        s = self.sources[index]
+        ip = s.split('@')[1].split('/')[0]
+        cap = cv2.VideoCapture(eval(s) if s.isnumeric() else s)
+        if cap is None or not cap.isOpened():
+          self.logger.info(f'failed to open {s}')
+        else:
+          fps = cap.get(cv2.CAP_PROP_FPS) #%100
+          self.logger.info(f'DT - {s} success ({self.w}x{self.h} at {fps:.2f} FPS)')
+          c_status = True
         # Read next stream frame in a daemon thread
-        while cap.isOpened():
+        while True:
           r, img = cap.read()
           if r:
+            self.status[index] = True # new frames to process
             self.imgs[index].append(img)
             time.sleep(0.001)  # wait time
           else:
             self.status[index] = False
-            print(f'error with source {self.sources[index]}')
-            return
+            pingtry = ping(ip,count=3,timeout=1)
+            if pingtry.success():
+              if c_status:
+                self.logger.info(f'DT - {ip} camera online frame lost')
+                time.sleep(10)  # wait time
+              else:
+                cap = cv2.VideoCapture(eval(s) if s.isnumeric() else s)
+                if cap is None or not cap.isOpened():
+                  self.logger.info(f'DT - {ip} reconnect failed')
+                  c_status = False
+                else:
+                  self.logger.info(f'DT - {ip} reconnect success')
+                  c_status = True
+            else:
+              c_status = False
+              self.logger.info(f'DT - {ip} camera offline')
+              time.sleep(10)  # wait time
 
 
     def grab(self):

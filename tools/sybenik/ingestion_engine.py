@@ -1,13 +1,14 @@
 #! /usr/bin/env python3
 
 import os
-import logging
 import json
 from datetime import datetime
 from dateutil import tz
 import mysql.connector
 import shutil, os
 import pandas as pd
+import logging
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 
 class ingestion:
 
@@ -23,13 +24,14 @@ class ingestion:
     self.clock_dt = config['clock_dt']
     self.pending_ingestion = True
 
-    logging.basicConfig(
-      filename=logfile,
-      filemode='w',
-      level=logging.DEBUG,
-      format='%(asctime)s [%(levelname)s] %(message)s',
-      datefmt='%y-%m-%d %H:%M:%S%z'
-    )
+    logHandler = TimedRotatingFileHandler(logfile, when='midnight', backupCount=14)
+    logFormatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', "%Y-%m-%d %H:%M:%S%z")
+    logHandler.setFormatter(logFormatter)
+    logger = logging.getLogger('ing-logger')
+    logger.addHandler(logHandler)
+    logger.setLevel(logging.DEBUG)
+    self.logger = logger
+
     self.config = config
 
     self.HERE = tz.tzlocal()
@@ -63,7 +65,7 @@ class ingestion:
     except Exception as e:
       raise Exception(f'Error in query for cam/barriers : {e}')
 
-    logging.info('init engine')
+    self.logger.info('init engine')
 
 
   def do_task(self):
@@ -72,7 +74,7 @@ class ingestion:
 
     if int(ts - 5) % self.clock_dt == 0:
       if self.pending_ingestion:
-        logging.info('Ingesting')
+        self.logger.info('Ingesting')
         cdata = []
         bdata = []
         datafilenames = []
@@ -91,7 +93,7 @@ class ingestion:
         if len(datafilenames):
           dbs = self.config['db']
           for dbtag, dbdata in dbs.items():
-            #logging.info(f'Pushing to db {dbtag}')
+            #self.logger.info(f'Pushing to db {dbtag}')
             self.push_db(dbdata, tag=dbtag, cdata=cdata, bdata=bdata)
 
           for f in datafilenames:
@@ -99,7 +101,7 @@ class ingestion:
             #shutil.move(f, os.path.join(self.bckdir, f))
 
         else:
-          logging.info('Nothing to ingest')
+          self.logger.info('Nothing to ingest')
         self.pending_ingestion = False
     else:
       if not self.pending_ingestion:
@@ -107,7 +109,7 @@ class ingestion:
 
 
   def push_db(self, config, tag='db', cdata=None, bdata=None):
-    logging.info(f'Pushing data to {tag}')
+    self.logger.info(f'Pushing data to {tag}')
 
     try:
       db = mysql.connector.connect(
@@ -119,31 +121,31 @@ class ingestion:
       )
       cursor = db.cursor()
     except Exception as e:
-      logging.error(f'Error connecting to {tag} : {e}')
+      self.logger.error(f'Error connecting to {tag} : {e}')
       return
 
     if cdata:
       try:
         query = f"""INSERT IGNORE INTO {config['database']}.cam_cnt (TIMESTAMP, DATETIME, CAM_UID, MEAN, MAX, MIN) VALUES (%s, %s, %s, %s, %s, %s)"""
         cursor.executemany(query, cdata)
-        logging.info(f'Inserted : {len(cdata)} cam data')
+        self.logger.info(f'Inserted : {len(cdata)} cam data')
       except Exception as e:
-        logging.error(f'Cam push failed : {e}')
+        self.logger.error(f'Cam push failed : {e}')
 
     if bdata:
       try:
         query = f"""INSERT IGNORE INTO {config['database']}.barriers_cnt (TIMESTAMP, DATETIME, BARRIER_UID, COUNTER) VALUES (%s, %s, %s, %s)"""
         cursor.executemany(query, bdata)
-        logging.info(f'Inserted : {len(bdata)} bar data')
+        self.logger.info(f'Inserted : {len(bdata)} bar data')
       except Exception as e:
-        logging.error(f'Bar push failed : {e}')
+        self.logger.error(f'Bar push failed : {e}')
 
     try:
       db.commit()
       cursor.close()
       db.close()
     except Exception as e:
-      logging.error(f'Error in closing db connection : {e}')
+      self.logger.error(f'Error in closing db connection : {e}')
 
 
   def ingest_barfile(self, filename):
@@ -160,10 +162,9 @@ class ingestion:
           for bdir, dcnt in bdata.items():
             uid = self.bar_proxy[(cname, bname, bdir)]
             datas.append([ ts, timeutc, uid, dcnt ])
-      logging.info(f'Datafile {filename} imported')
+      self.logger.info(f'Datafile {filename} imported')
     #print(datas)
     return datas
-
 
   def ingest_camfile(self, filename):
     datas = []
@@ -179,7 +180,7 @@ class ingestion:
         cntmax = data['counter']['MAX']
         cntmin = data['counter']['MIN']
         datas.append([ ts, timeutc, uid, cntmean, cntmax, cntmin ])
-      logging.info(f'Datafile {filename} imported')
+      self.logger.info(f'Datafile {filename} imported')
     #print(datas)
     return datas
 
