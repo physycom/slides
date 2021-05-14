@@ -10,6 +10,7 @@ Description=my decription
 Type=simple
 
 User=myuser
+Environment="MYVAR=myval"
 ExecStart=/usr/bin/python3 /path/to/script.py arg1 arg2 arg3
 
 StandardInput=tty-force
