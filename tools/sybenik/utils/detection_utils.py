@@ -7,7 +7,7 @@ import torch
 import torchvision
 import os
 import logging
-from pythonping import ping
+import requests
 
 #code partly adapted from https://github.com/mikel-brostrom/Yolov5_DeepSort_Pytorch
 
@@ -237,6 +237,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
 
     def update(self, index):
         c_status = False # camera open
+        lost_frames = 0 # lost frames counter
         s = self.sources[index]
         ip = s.split('@')[1].split('/')[0]
         cap = cv2.VideoCapture(eval(s) if s.isnumeric() else s)
@@ -255,19 +256,21 @@ class LoadStreams:  # multiple IP or RTSP cameras
             time.sleep(0.001)  # wait time
           else:
             self.status[index] = False
-            pingtry = ping(ip,count=3,timeout=1)
-            if pingtry.success():
+            pingtry = requests.get(f'http://{ip}',timeout=10)
+            if pingtry.status_code == requests.codes.ok:
               if c_status:
-                self.logger.info(f'DT - {ip} camera online frame lost')
-                time.sleep(10)  # wait time
+                lost_frames +=1
+                if lost_frames > 30:
+                  c_status = False
               else:
                 cap = cv2.VideoCapture(eval(s) if s.isnumeric() else s)
                 if cap is None or not cap.isOpened():
                   self.logger.info(f'DT - {ip} reconnect failed')
                   c_status = False
                 else:
-                  self.logger.info(f'DT - {ip} reconnect success')
+                  self.logger.info(f'DT - {ip} reconnect success, lost {lost_frames} frames')
                   c_status = True
+                  lost_frames = 0
             else:
               c_status = False
               self.logger.info(f'DT - {ip} camera offline')
