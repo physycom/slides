@@ -237,7 +237,6 @@ class LoadStreams:  # multiple IP or RTSP cameras
 
     def update(self, index):
         c_status = False # camera open
-        lost_frames = 0 # lost frames counter
         s = self.sources[index]
         ip = s.split('@')[1].split('/')[0]
         cap = cv2.VideoCapture(eval(s) if s.isnumeric() else s)
@@ -249,32 +248,37 @@ class LoadStreams:  # multiple IP or RTSP cameras
           c_status = True
         # Read next stream frame in a daemon thread
         while True:
-          r, img = cap.read()
-          if r:
-            self.status[index] = True # new frames to process
+          r = False
+          try:
+            r, img = cap.read()
+          except cv2.error as e:
+            self.logger.info(f'DT - {ip} camera error: {e}')
+          if r==True:
             self.imgs[index].append(img)
+            self.status[index] = True # new frames to process
             time.sleep(0.001)  # wait time
           else:
             self.status[index] = False
-            pingtry = requests.get(f'http://{ip}',timeout=10)
-            if pingtry.status_code == requests.codes.ok:
-              if c_status:
-                lost_frames +=1
-                if lost_frames > 30:
-                  c_status = False
+            try:
+              pingtry = requests.get(f'http://{ip}',timeout=10)
+              if pingtry.status_code == requests.codes.ok:
+                if c_status==False:
+                  cap = cv2.VideoCapture(eval(s) if s.isnumeric() else s)
+                  if cap is None or not cap.isOpened():
+                    self.logger.info(f'DT - {ip} reconnect failed')
+                    c_status = False
+                  else:
+                    self.logger.info(f'DT - {ip} reconnect success')
+                    c_status = True
+                  continue
               else:
-                cap = cv2.VideoCapture(eval(s) if s.isnumeric() else s)
-                if cap is None or not cap.isOpened():
-                  self.logger.info(f'DT - {ip} reconnect failed')
-                  c_status = False
-                else:
-                  self.logger.info(f'DT - {ip} reconnect success, lost {lost_frames} frames')
-                  c_status = True
-                  lost_frames = 0
-            else:
-              c_status = False
-              self.logger.info(f'DT - {ip} camera offline')
-              time.sleep(10)  # wait time
+                self.logger.info(f'DT - {ip} camera offline')
+            except requests.exceptions.RequestException as e:
+              self.logger.info(f'DT - {ip} request error : {e}')
+            except Exception as e:
+              self.logger.info(f'DT - {ip} runtime error : {e}')
+            c_status = False
+            time.sleep(10)  # wait time
 
 
     def grab(self):
