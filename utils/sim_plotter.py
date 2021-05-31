@@ -18,24 +18,38 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
     stop = datetime.strptime(start_date, datetime_format)
     midn_start = start.replace(hour=0, minute=0, second=0)
 
-    sampling = 300
-    fullt = pd.date_range(midn_start.strftime(datetime_format), (midn_start + timedelta(hours=24, seconds=-sampling)).strftime(datetime_format), freq='{}s'.format(sampling), tz='UTC')
-    df = pd.DataFrame(index=fullt)
-
     sources = {}
+    cnt_io = 0
     if 'sources' in config:
       src = config['sources']
       for k,v in src.items():
         rates = v['creation_rate']
+        dt = (24 * 60 * 60) / len(rates)
+        times = [ midn_start + timedelta(seconds=i*dt) for i in range(len(rates)) ]
+        sources[k] = [times, rates]
         print(k, len(rates))
+        if (k!="LOCALS" and k.endswith("_w")): cnt_io += max(rates)
+        print(max(rates), sum(rates))
+    print(cnt_io)
+
+    dt = 300
+    n = 24 * 60 * 60 // dt
+    ts = [ midn_start + timedelta(seconds=i*dt) for i in range(n) ]
+    df = pd.DataFrame(ts)
+    df.index = pd.to_datetime(df[0], unit='s')
 
     #print(df)
     ptitle = f'Source timetables, city {city}'
-    exit(1)
   elif popin != None and confin == None:
+
     df = pd.read_csv(popin, delimiter=';', parse_dates=['datetime'], index_col='datetime')
     df = df.drop(columns=['timestamp', 'transport', 'awaiting_transport'])
     ptitle = f'Population, city {city}'
+
+    start = df.index[0]
+    stop = df.index[-1]
+    ts = [ t.timestamp() for t in df.index ]
+
     #print(df)
   else:
     raise Exception(f'[sim_plotter] invalid mode popin {popin} csvin {confin}')
@@ -43,10 +57,7 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
   # autoscaling parameters
   maxlbl = 15
   maxtick = maxlbl * 4
-  start = df.index[0]
-  stop = df.index[-1]
   dt = (stop - start).total_seconds()
-  ts = [ t.timestamp() for t in df.index ]
 
   # autoscale minor axis ticks
   tsn = len(ts)
@@ -66,11 +77,11 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
     maj_us = 1
   major_ticks = minor_ticks[::maj_us]
   #print('mjt', len(major_ticks))
-  major_lbl = [ t.strftime('%b %-d %H:%M') for t in df.index ]
+  major_lbl = [ t.strftime('%b %d %H:%M') for t in df.index ]
   major_lbl = major_lbl[::min_us][::maj_us]
 
   # plot
-  if 'LOCALS' in df.columns:
+  if popin != None and confin == None:
     fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(12, 8))
     axs = axs.flatten()
 
@@ -80,8 +91,8 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
     axes.set_xticklabels(major_lbl, rotation=45)
 
     for c in df.columns:
-      if c != 'LOCALS':
-        axes.plot(ts, df[c], '-o', label=c)
+      if c in ['locals']: continue
+      axes.plot(ts, df[c], '-o', label=c)
 
     axes.legend()
     axes.set_xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
@@ -94,21 +105,22 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
     axes.set_xticks(major_ticks)
     axes.set_xticklabels(major_lbl, rotation=45)
 
-    axes.plot(ts, df['LOCALS'], '-o', label='LOCALS')
+    axes.plot(ts, df['locals'], '-o', label='locals')
 
     axes.legend()
     axes.set_xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
     axes.set_ylabel('Counter')
     axes.grid(which='major', linestyle='-')
     axes.grid(which='minor', linestyle='--')
-  else:
+  elif popin == None and confin != None:
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
     axes.set_xticks(minor_ticks, minor=True)
     axes.set_xticks(major_ticks)
     axes.set_xticklabels(major_lbl, rotation=45)
 
-    for c in df.columns:
-      axes.plot(ts, df[c], '-o', label=c)
+    for tag, (ts, rs) in sources.items():
+      if tag in ['LOCALS']: continue
+      axes.plot(ts, rs, '-o', label=f'{tag}')
 
     axes.legend()
     axes.set_xlabel(f'Time of day [Month Day HH:MM], minor ticks every {dt_td}')
