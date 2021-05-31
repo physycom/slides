@@ -5,41 +5,8 @@ import sys
 import json
 import numpy as np
 import pandas as pd
-import pymongo
 from datetime import datetime, timedelta
 from dateutil import tz
-
-#######################
-#### log function #####
-#######################
-def logs(s):
-  head = '{} [m_ferrara] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
-  return head + s
-
-def log_print(s, logger = None):
-  if logger:
-    logger.info(logs(s))
-  else:
-    print(logs(s), flush=True)
-
-############################
-#### model_slides class ####
-############################
-class model_slides_ferrara:
-
-  def __init__(self, config, logger=None):
-    self.logger = logger
-    self.got_data = False
-    self.date_format = '%Y-%m-%d %H:%M:%S'
-    self.time_format = '%H:%M:%S'
-    self.rates_dt = 5 * 60
-
-    self.wdir = config['work_dir']
-    if not os.path.exists(self.wdir): os.mkdir(self.wdir)
-
-  def full_table(self, start, stop, tag):
-    df = pd.DataFrame([], columns=['time'])
-    return df
 
 if __name__ == '__main__':
   import argparse
@@ -51,7 +18,6 @@ if __name__ == '__main__':
   parser.add_argument('-fs', '--fine_sampling', type=int, default=600)
   parser.add_argument('-in', '--interpolation', choices=['lin', 'no'], default='lin')
   parser.add_argument('-a', '--aggr', choices=['rec', 'uniq'], default='uniq')
-  parser.add_argument('-pc', '--plotconf', default='')
 
   args = parser.parse_args()
   fine_freq = f'{args.fine_sampling}s'
@@ -61,16 +27,37 @@ if __name__ == '__main__':
   tok = filein[:filein.rfind('.')].split('_')
 
   dt_fmt = '%Y%m%d-%H%M%S'
-  start = datetime.strptime(tok[-2], dt_fmt)
-  stop = datetime.strptime(tok[-1], dt_fmt)
+  try:
+    start = datetime.strptime(tok[-2], dt_fmt)
+    stop = datetime.strptime(tok[-1], dt_fmt)
+  except:
+    start = datetime.strptime(tok[-3], dt_fmt)
+    stop = datetime.strptime(tok[-2], dt_fmt)
 
-  df = pd.read_csv(filein, sep=';', usecols=['mac_address', 'date_time', 'station_name', 'kind'], parse_dates=['date_time'], index_col='date_time')
+  try:
+    df = pd.read_csv(filein, sep=';', usecols=['mac-address', 'date_time', 'station_name', 'kind'], parse_dates=['date_time'], index_col='date_time', engine='c')
+    df = df.rename(columns={'mac-address':'mac_address'})
+    old_format = True
+  except:
+    # new format support
+    old_format = False
+    df = pd.read_csv(filein, sep=';', usecols=['mac_address', 'date_time', 'station_name', 'kind'], parse_dates=['date_time'], index_col='date_time', engine='c')
   df['wday'] = [ t.strftime('%a') for t in df.index ]
   df['date'] = df.index.date
   df['time'] = df.index.time
-  df['station_id'] = df.station_name.str[-2:-1]
+
+  if 1 and old_format:
+    print(f'**** WARNING FILTERING FERRARA STATIONS')
+    df = df[ df.station_name.str.startswith('Ferrara-') ]
+
+  try:
+    df['station_id'] = df.station_name.str.split('-', expand=True)[1]
+  except:
+    #old format support
+    df['station_id'] = df.station_name.str.extract(r'.*\((\d)\)')
+
   #print(df)
-  #print(df[['wday', 'date', 'station_id']])
+  print(df[['wday', 'date', 'station_name', 'station_id']])
 
   """
   Perform device id counting with fine temporal scale

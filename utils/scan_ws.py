@@ -3,7 +3,6 @@
 import os
 import sys
 import json
-import argparse
 from datetime import datetime, timedelta
 from requests import post, get
 import shutil
@@ -18,6 +17,7 @@ except Exception as e:
 
 if __name__ == '__main__':
   # parse cli and config
+  import argparse
   parser = argparse.ArgumentParser()
   parser.add_argument('-c', '--config', required=True)
   parser.add_argument('-m', '--mode', default='sim', choices=['geo', 'sim'])
@@ -32,40 +32,61 @@ if __name__ == '__main__':
   wdir = base[:base.rfind('.')]
   if not os.path.exists(wdir): os.mkdir(wdir)
 
-  start_date = config['start_date']
-  stop_date  = config['stop_date']
-  day_dt = config['day_dt']
-  sim_dt = [ dtm * 60 for dtm in config['sim_dt_min'] ]
-  sim_start_times = config['sim_start_times']
   url_list = config['url_list']
   cities = config['cities']
 
+  schedule = {}
+  sid = 0
   date_format = '%Y-%m-%d %H:%M:%S'
   short_format = '%y%m%d_%H%M%S'
-  start = datetime.strptime(start_date, date_format)
-  stop = datetime.strptime(stop_date, date_format)
 
-  schedule = {}
-  t = start
-  sid = 0
-  while t < stop:
+  if 'sim_generation' in config:
+    gencfg = config['sim_generation']
+    start_date = gencfg['start_date']
+    stop_date  = gencfg['stop_date']
+    day_dt = gencfg['day_dt']
+    sim_dt = [ dtm * 60 for dtm in gencfg['sim_dt_min'] ]
+    sim_start_times = gencfg['sim_start_times']
+
+    start = datetime.strptime(start_date, date_format)
+    stop = datetime.strptime(stop_date, date_format)
+
+    t = start
+    while t < stop:
+      for url in url_list:
+        for tstart in sim_start_times:
+          for sdt in sim_dt:
+            for city in cities:
+              t0 = datetime.strptime(t.strftime('%Y-%m-%d {}'.format(tstart)), date_format)
+              t1 = t0 + timedelta(seconds=sdt)
+              schedule.update({
+                f'sim_{sid:04d}' : {
+                  'start_date'  : t0.strftime(date_format),
+                  'stop_date'   : t1.strftime(date_format),
+                  'sampling_dt' : 900,
+                  'city'        : city,
+                  'url'         : url,
+                  'out_type'    : 'both',
+                }
+              })
+              sid += 1
+      t += timedelta(days=day_dt)
+
+  if 'sim_list' in config:
     for url in url_list:
-      for tstart in sim_start_times:
-        for sdt in sim_dt:
-          for city in cities:
-            t0 = datetime.strptime(t.strftime('%Y-%m-%d {}'.format(tstart)), date_format)
-            t1 = t0 + timedelta(seconds=sdt)
-            schedule.update({
-              f'sim_{sid:04d}' : {
-                'start_date'  : t0.strftime(date_format),
-                'stop_date'   : t1.strftime(date_format),
-                'sampling_dt' : 300,
-                'city'        : city,
-                'url'         : url
-              }
-            })
-            sid += 1
-    t += timedelta(days=day_dt)
+      for city in cities:
+        for start, stop in config['sim_list']:
+          schedule.update({
+            f'sim_{sid:04d}' : {
+              'start_date'  : start,
+              'stop_date'   : stop,
+              'sampling_dt' : 900,
+              'city'        : city,
+              'url'         : url,
+              'out_type'    : 'both',
+            }
+          })
+          sid += 1
 
   with open(wdir + '/scan_schedule.json', 'w') as sout:
     json.dump(schedule, sout, indent=2)
@@ -77,6 +98,7 @@ if __name__ == '__main__':
     wsdir = wsc['work_dir']
     print(f'Found local ws data in {wsdir}, pngs enabled.')
     do_png = True
+    do_png = False
   except Exception as e:
     print(f'Unable to locate ws working dir, skipping pngs, err : {e}')
     do_png = False
@@ -98,7 +120,7 @@ if __name__ == '__main__':
             'username' : user,
             'password' : pwd
           },
-          timeout=180
+          timeout=300
         )
         token = res.json()['access_token']
 
@@ -117,12 +139,16 @@ if __name__ == '__main__':
               'Authorization': f'Bearer {token}'
             },
             data=json.dumps(s),
-            timeout=180
+            timeout=300
           )
           outname = f'{sid:>04s}_response.json'
 
           # make plot (only localhost scan)
           try:
+            rjson = res.json()
+            #print(rjson.keys())
+            simid = rjson['sim_id']
+
             if do_png:
               conf = f'{wsdir}/wsconf_sim_{city}.json'
               conf_clone = f'{wdir}/{sid:>04s}_conf.json'
@@ -131,19 +157,19 @@ if __name__ == '__main__':
               sim_plot(confin=conf, outpng=outpng, city=city)
 
               sd = datetime.strptime(s['start_date'], date_format).strftime(short_format)
-              popf = f'{wsdir}/r_{city}_population_{sd}.csv'
+              popf = f'{wsdir}/r_{city}_{simid}_population_{sd}.csv'
               popf_clone = f'{wdir}/{sid:>04s}_pop.csv'
               shutil.copyfile(popf, popf_clone)
               outpng = f'{wdir}/{sid:>04s}_pop.png'
               sim_plot(popin=popf, outpng=outpng, city=city)
 
-              statsf = f'{wsdir}/r_{city}_pstats_{sd}.csv'
+              statsf = f'{wsdir}/r_{city}_{simid}_pstats_{sd}.csv'
               statsf_clone = f'{wdir}/{sid:>04s}_pstats.csv'
               shutil.copyfile(statsf, statsf_clone)
               outbase = f'{wdir}/{sid:>04s}_pstats'
               sim_stats(statsin=statsf, outbase=outbase, city=city)
 
-              wroutef = f'{wsdir}/r_{city}_wrstats_{sd}.csv'
+              wroutef = f'{wsdir}/r_{city}_{simid}_wrstats_{sd}.csv'
               wroutef_clone = f'{wdir}/{sid:>04s}_wrstats.csv'
               shutil.copyfile(wroutef, wroutef_clone)
               outbase = f'{wdir}/{sid:>04s}_wrstats'

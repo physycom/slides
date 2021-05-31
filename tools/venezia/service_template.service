@@ -1,0 +1,24 @@
+# See
+
+[Unit]
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+Description=my decription
+
+[Service]
+Type=simple
+
+User=myuser
+ExecStart=/usr/bin/python3 /path/to/script.py arg1 arg2 arg3
+
+StandardInput=tty-force
+StandardOutput=file:/path/to/stdout.txt
+StandardError=file:/path/to/stderr.txt
+
+# Set restart and its timer
+#Restart=always
+#RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -35,7 +35,7 @@ if __name__ == '__main__':
   base = f'{base}_{start.strftime(dt_fmt)}_{stop.strftime(dt_fmt)}'
 
   # read raw data
-  df = pd.read_csv(args.input, sep=';')
+  df = pd.read_csv(args.input, sep=';', low_memory=False, engine='c')
   df.date_time = pd.to_datetime(df.date_time)
   df.date_time = df.date_time.dt.tz_localize(None)
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
@@ -67,8 +67,6 @@ if __name__ == '__main__':
       stats = dfr
     else:
       stats = pd.concat([stats, dfr], axis=1).fillna(0)
-
-  print('*** stats\n', stats)
 
   # plot
   w, h, d = 10, 10, 150

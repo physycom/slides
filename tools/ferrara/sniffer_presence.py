@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import re
 import json
 import argparse
 import pandas as pd
@@ -19,6 +20,7 @@ if __name__ == '__main__':
   parser.add_argument('-t', '--dt', type=int, default=300)
   parser.add_argument('-r', '--range', type=str, default='')
   parser.add_argument('-d', '--dev', type=str, default='wifi')
+  parser.add_argument('-f', '--filter', nargs='+', default=[])
   args = parser.parse_args()
   base = args.input[:args.input.find('_')]
 
@@ -26,15 +28,24 @@ if __name__ == '__main__':
   freq = f'{args.dt}s'
   if args.range == '':
     tok = args.input[:args.input.rfind('.')].split('_')
-    start = datetime.strptime(tok[-2], dt_fmt)
-    stop = datetime.strptime(tok[-1], dt_fmt)
+    try:
+      start = datetime.strptime(tok[-2], dt_fmt)
+      stop = datetime.strptime(tok[-1], dt_fmt)
+    except:
+      start = datetime.strptime(tok[-3], dt_fmt)
+      stop = datetime.strptime(tok[-2], dt_fmt)
   else:
     start = datetime.strptime(args.range.split('|')[0], dt_fmt)
     stop = datetime.strptime(args.range.split('|')[1], dt_fmt)
   base = f'{base}_{start.strftime(dt_fmt)}_{stop.strftime(dt_fmt)}_{args.dev}'
 
   df = pd.read_csv(args.input, sep=';')
+  try:
+    df = df.rename(columns={'mac-address':'mac_address'})
+  except:
+    pass
   df.date_time = pd.to_datetime(df.date_time)
+  df.date_time = df.date_time.dt.tz_localize(None)
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
   df = df[ df.kind == args.dev ]
 
@@ -75,16 +86,34 @@ if __name__ == '__main__':
   fig, ax = plt.subplots(1, 1, figsize=(w, h), dpi=d)
   plt.suptitle(f'Device type {args.dev}, unique device count')
 
-  #print(stats.columns)
+  print(stats.columns)
+  print(stats)
   for cid in stats.columns:
-    ntag = cid[cid.rfind('('):cid.rfind('(')+3]
-    lbl = cid[0:cid.rfind(')')+1]
 
-    if not ntag in ['(1)', '(5)', '(6)']: continue
+    if len(args.filter):
+      typetag = 'sel_'
+      print(cid)
+      check = np.array([ re.match(f'.*{f}.*', cid) != None for f in args.filter ])
+      print(check)
+      print(check.any())
+      if not check.any():
+        continue
+    else:
+      typetag = ''
+
+    try:
+      ntag, lbl = cid.split('-')
+    except:
+      ntag = lbl = cid
+      
+
+    #if not ntag in ['(1)', '(5)', '(6)']: continue
+    print(cid)
+    print(stats[cid])
     if cid.endswith('_unique'):
       ax.plot(stats.index, stats[cid], '-', label=lbl)
     else:
-      pass
+      continue
 
   ax.set_title(f'period {start} -> {stop}, resampling {freq}')
   ax.legend()
@@ -94,4 +123,5 @@ if __name__ == '__main__':
   if args.show:
     plt.show()
   else:
-    plt.savefig(f'{base}_presence_{freq}.png')
+    plt.savefig(f'{base}_presence_{typetag}{freq}.png')
+  plt.close()

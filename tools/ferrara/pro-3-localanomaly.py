@@ -25,11 +25,22 @@ wdcat = {
   'Sun' : 'festivi'
 }
 
+map_station = {
+  "1":"Castello, Via Martiri", "2":"Hotel Carlton", "3":"Via del Podestà", "4":"Corso di P.Reno / Via Ragno" ,
+  "5":"Piazza Trento Trieste", "6":"Piazza Stazione"
+}
 # congestion status
 class cg():
   LOW  = 1
   AVE  = 2
   HIGH = 3
+
+kpi_thresh = {
+  cg.LOW  : 0.2,
+  #cg.AVE  : 'gray',
+  cg.AVE  : 0,
+  cg.HIGH : 0.8
+}
 
 kpi_colors = {
   cg.LOW  : 'blue',
@@ -56,11 +67,18 @@ if __name__ == '__main__':
   parser.add_argument('-tl', '--time_labels', help='set time spacing between ticks\' labels', type=int, default=3600)
   args = parser.parse_args()
 
+  # inputs and plot ticks manipulations
   filein = args.data
   base = filein[:filein.rfind('/')]
   tok = filein[:filein.find('/')].split('_')
-  start_date = tok[-2]
-  stop_date = tok[-1]
+  dt_fmt = '%Y%m%d-%H%M%S'
+  try:
+    start = datetime.strptime(tok[-2], dt_fmt)
+    stop = datetime.strptime(tok[-1], dt_fmt)
+  except:
+    start = datetime.strptime(tok[-3], dt_fmt)
+    stop = datetime.strptime(tok[-2], dt_fmt)
+
   fname = filein[filein.find('/')+1:filein.rfind('.')].split('_')
   fine_freq = fname[-2]
   fine_freq_s = int(fine_freq[:-1])
@@ -80,19 +98,14 @@ if __name__ == '__main__':
     dt_lbls = dt_ticks
   print(f'Data sampling {fine_freq_s}. Ticks sampling {dt_ticks} u {tus}. Labels sampling {dt_lbls} u {lus}')
 
-  dt_fmt = '%Y%m%d-%H%M%S'
-  start = datetime.strptime(start_date, dt_fmt)
-  stop = datetime.strptime(stop_date, dt_fmt)
-
+  # parsing input counters file
   stats = pd.read_csv(filein, sep=';', parse_dates=['time'], index_col='time')
   stats.index = stats.index.time
-  print('stats\n', stats)
   tuplecol = [ tuple(c.replace('\'', '').replace('(', '').replace(')','').replace(' ','').split(',')) for c in stats.columns ]
   stats.columns = tuplecol
-
   """
-  Groupby station_id and compute per day (or other criteria) mean signal.
   Perform moving average to remove fluctuations.
+  Groupby station_id and compute per day (or other criteria) mean signal.
   """
   tnow = datetime.now()
   ave = stats.copy()
@@ -103,12 +116,9 @@ if __name__ == '__main__':
   cols[-1] = 'cnt'
   ave.columns = cols
   #ave.station_id = ave.station_id.astype(int)
-  print('ave\n', ave)
   ave.date = pd.to_datetime(ave.date)
   ave['wday'] = ave.date.dt.strftime('%a')
-  #print(ave)
   dfave = ave.groupby(['station_id', 'wday', 'time']).mean()
-  #print(dfave)
   smooths = {}
   for sid, dfg in dfave.groupby(['station_id']):
     try:
@@ -139,15 +149,14 @@ if __name__ == '__main__':
     for c in dfp.columns:
       conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( dfp[c].values ) * np.fft.fft(kern) )))
       smooth[c] = conv
-    #print(smooth)
     smooth.index.name='time'
     smooth.to_csv(f'{base}/{sid}_{fine_freq}_{interp}_smooth.csv', sep=';', index=True)
     smooths[sid] = smooth
   tave = datetime.now() - tnow
   print(f'Averaging done in {tave} for {smooths.keys()}')
-
   """
-  Rebuild full-time dataframe
+  Evaluate several timeseries differences and compute stats to define
+  data-driven thresholds for anomaly coefficient
   """
   datetime_fmt = '%Y-%m-%d %H:%M:%S'
   fullt = {}
@@ -163,7 +172,6 @@ if __name__ == '__main__':
     replicas = len(dft) // len(smooths[s])
 
     drange = pd.date_range(start, stop, freq='1d')[:-1] # only for stop = Y M D 00:00:00
-    #print(drange)
     drange = [ d.strftime('%a') for d in drange ]
     ave_class = [ smooths[s][wdcat[d]].values for d in drange ]
     ave_day = [ smooths[s][d].values for d in drange ]
@@ -192,26 +200,23 @@ if __name__ == '__main__':
     dft['l2_diff_smooth'] = l2d_smooth
     dft['l2_diff_cut'] = l2d_cut
 
-
     # diff
     diff = dft.cnt - dft.ave_day_cnt
-    diff_smooth = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( diff ) * np.fft.fft(kern) )))
+    # diff_smooth = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( diff ) * np.fft.fft(kern) )))
+    diff_smooth = dft.cnt_smooth - dft.ave_day_cnt
     l1d_ave = diff_smooth.mean()
     l1d_std = diff_smooth.std()
-    l1d_thresh_up = l1d_ave + l1d_std
-    l1d_thresh_down = l1d_ave - l1d_std
-    #l1d_thresh = diff_smooth.copy()
-    #l1d_thresh[ l1d_thresh < l1d_thresh | ] = 0
+
+    l1d_thresh_up = diff_smooth.quantile(kpi_thresh[cg.HIGH])
+    l1d_thresh_down = diff_smooth.quantile(kpi_thresh[cg.LOW])
+
+    print(f'Station {s} : LOW {l1d_thresh_down:.2f}({kpi_thresh[cg.LOW]} perc) HIGH {l1d_thresh_up:.2f}({kpi_thresh[cg.HIGH]} perc)')
     dft['l1_diff'] = diff
     dft['l1_diff_smooth'] = diff_smooth
-    #dft['l1_diff_thresh'] = l2d_thresh
 
-    kpi = np.zeros(len(dft))
-    kpi[ dft.l1_diff_smooth < l1d_thresh_down ] = cg.LOW
-    kpi[ dft.l1_diff_smooth > l1d_thresh_down ] = cg.AVE
-    kpi[ dft.l1_diff_smooth > l1d_thresh_up ]   = cg.HIGH
-    dft['l1_kpi'] = kpi
-    #print(kpi)
+    dft['l1_kpi'] = cg.LOW
+    dft.loc[ dft.l1_diff_smooth > l1d_thresh_down, 'l1_kpi'] = cg.AVE
+    dft.loc[ dft.l1_diff_smooth > l1d_thresh_up, 'l1_kpi'] = cg.HIGH
 
     fullt[s] = dft
     flustats[s] = {
@@ -266,12 +271,16 @@ if __name__ == '__main__':
         'stop' : datetime.strptime(v['stop'], datetime_fmt)
       }
     for s, v in selection.items() }
-    ptag = 'pc'
+    ptag = args.plotconf.split('_')[1].split('.')[0]
   for s in selection:
-    dft = fullt[s]
+    try:
+      dft = fullt[s]
+    except:
+      print(f'Plot: station {s} not available')
+      continue
     dft = dft[ (dft.index >= selection[s]['start']) & (dft.index < selection[s]['stop']) ]
 
-    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10))
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10), sharex=True)
     ts = [ t.timestamp() for t in dft.index ]
     ts_ticks = ts[::tus]
     ts_lbl = [ t.strftime('%a %d %H:%M') for t in dft.index ]
@@ -279,37 +288,77 @@ if __name__ == '__main__':
     ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
     axes = axs[0]
 #    axes.plot(ts, dft.cnt.values, '-o', label=s, markersize=4)
-    axes.plot(ts, dft.cnt_smooth.values, 'y-o', label=f'Data', markersize=4)
+    axes.plot(ts, dft.cnt_smooth.values, 'r-o', label=f'Data smooth', markersize=4)
 #    axes.plot(ts, dft.ave_cnt.values, 'r--', label='ave')
-    axes.plot(ts, dft.ave_day_cnt.values, 'b--', label='Daily average data')
+    axes.plot(ts, dft.ave_day_cnt.values, 'b--', label='Daily average data smooth')
 
     for t, kpi in zip(ts, dft['l1_kpi'].values): # special effects...SKADOUSH!!!
       axes.axvspan(t-0.5*fine_freq_s, t+0.5*fine_freq_s, facecolor=data_colors[kpi], alpha=0.3)
 
     axes.set_xticks(ts_ticks)
-    axes.set_xticklabels(ts_lbl, rotation=45)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
     axes.grid()
     axes.legend()
-    axes.set_xlabel(f'Daytime Wday DD HH:MM (Ticks Sampling {dt_ticks} s)')
     axes.set_ylabel('Counter')
 
     axes = axs[1]
-    l2d_thresh_up = flustats[s]['l1_thr_up']
-    l2d_thresh_down = flustats[s]['l1_thr_down']
+    thresh_up = flustats[s]['l1_thr_up']
+    thresh_down = flustats[s]['l1_thr_down']
     #axes.plot(ts, dft.l2_diff.values, 'b-o', label=f'Station {s} l2_diff', markersize=4)
-    axes.plot(ts, dft.l1_diff_smooth.values, 'g-o', label=f'Fluctuations', markersize=4)
+    axes.plot(ts, dft.l1_diff.values, '-o', color='purple', label=f'Fluctuations', markersize=4)
+    axes.plot(ts, dft.l1_diff_smooth.values, 'g-o', label=f'Fluctuations smooth', markersize=4)
     #axes.plot(ts, dft.l2_diff_thresh.values, 'g-o', label=f'Station {s} l2_diff', markersize=4)
-    axes.axhspan(axes.get_ylim()[0], 1*l1d_thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3)
-    axes.axhspan(l1d_thresh_down, l1d_thresh_up, facecolor=kpi_colors[cg.AVE] , alpha=0.3)
-    axes.axhspan(l1d_thresh_up, axes.get_ylim()[1], facecolor=kpi_colors[cg.HIGH] , alpha=0.3)
+    axes.axhspan(axes.get_ylim()[0], thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3, label=f'LOW < {kpi_thresh[cg.LOW]} centile')
+    axes.axhspan(thresh_down, thresh_up, facecolor=kpi_colors[cg.AVE] , alpha=0.3)
+    axes.axhspan(thresh_up, axes.get_ylim()[1], facecolor=kpi_colors[cg.HIGH] , alpha=0.3, label=f'HIGH > {kpi_thresh[cg.HIGH]} centile')
+
     axes.set_xticks(ts_ticks)
-    axes.set_xticklabels(ts_lbl, rotation=45)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
     axes.grid()
     axes.legend()
-    axes.set_xlabel('Day YY-MM-DD')
+    axes.set_xlabel(f'Daytime [Wday DD HH:MM] (Ticks Sampling {dt_ticks} s)')
     axes.set_ylabel('Anomaly coefficient [au]')
 
     plt.tight_layout()
     fig.subplots_adjust(top=0.95)
     plt.suptitle(f'Station {s} localnorm analysis, data sampling {fine_freq}', y=0.98)
     plt.savefig(f'{base}/{s}_{fine_freq}_localnorm_{ptag}.png')
+
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10), sharex=True)
+    ts = [ t.timestamp() for t in dft.index ]
+    ts_ticks = ts[::tus]
+    ts_lbl = [ t.strftime('%a %d %H:%M') for t in dft.index ]
+    ts_lbl = ts_lbl[::tus]
+    ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
+
+    axes = axs[0]
+    axes.plot(ts, dft.cnt_smooth.values, 'r-o', label=f'Data smooth', markersize=4)
+    axes.plot(ts, dft.ave_day_cnt.values, 'b--', label='Daily average data smooth')
+
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.grid(which='major')
+    axes.legend()
+    axes.set_ylabel('Counter')
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.legend()
+
+    axes = axs[1]
+    axes.plot(ts, dft.cnt_smooth.values, 'r-o', label=f'Data smooth', markersize=4)
+    axes.plot(ts, dft.ave_cnt.values, 'c--', label='Montly average data smooth')
+
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.grid(which='major')
+    axes.legend()
+    axes.set_ylabel('Counter')
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.legend()
+    axes.set_xlabel(f'Daytime [Wday DD HH:MM] (Ticks Sampling {dt_ticks} s)')
+
+    plt.tight_layout()
+    fig.subplots_adjust(top=0.95)
+    plt.suptitle(f'{map_station[s]}: plot comparison, data sampling {fine_freq}', y=0.98)
+    plt.savefig(f'{base}/{s}_{fine_freq}_comparison_{ptag}.png')

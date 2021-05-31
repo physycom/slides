@@ -38,6 +38,12 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
     df = pd.DataFrame(ts)
     df.index = pd.to_datetime(df[0], unit='s')
 
+    dt = 300
+    n = 24 * 60 * 60 // dt
+    ts = [ midn_start + timedelta(seconds=i*dt) for i in range(n) ]
+    df = pd.DataFrame(ts)
+    df.index = pd.to_datetime(df[0], unit='s')
+
     #print(df)
     ptitle = f'Source timetables, city {city}'
   elif popin != None and confin == None:

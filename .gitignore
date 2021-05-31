@@ -71,12 +71,22 @@ bld/
 *.log
 vars/conf/conf.json
 vars/templates/*_template.json
+tools/sybenik/data/detection-cfg.json
+tools/sybenik/data/ingestion-cfg.json
+tools/venezia/ingestion-cfg.json
+tools/venezia/detection-cfg.json
+tools/venezia/*.service
+deepsort_ckpt.t7
+yolov5x.pt
+*.old
 
 # Python
-*/__pycache__/
+__pycache__/
+*/*/__pycache__/
 
 # Docker
 docker/.ssh/
 
 # Debug
 work_*/
+*.html

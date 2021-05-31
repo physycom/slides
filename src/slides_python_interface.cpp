@@ -45,6 +45,7 @@ struct pysimulation
       s->run([this]() {
         s->dump_net_state();
         s->dump_population();
+        s->dump_influxgrid();
       }, [] () {});
     }
   }
@@ -68,6 +69,11 @@ struct pysimulation
   std::string poly_outfile()
   {
     return (s != nullptr) ? s->poly_outfile : std::string("null");
+
+  }
+  std::string grid_outfile()
+  {
+    return (s != nullptr) ? s->grid_outfile : std::string("null");
   }
 
   std::string sim_info()
@@ -92,6 +98,7 @@ PYBIND11_MODULE(pysim, m)
     .def(pybind11::init<const std::string &>())
     .def("run", &pysimulation::run)
     .def("poly_outfile", &pysimulation::poly_outfile)
+    .def("grid_outfile", &pysimulation::grid_outfile)
     .def("dump_poly_geojson", &pysimulation::dump_poly_geojson)
     .def("dump_grid_geojson", &pysimulation::dump_grid_geojson)
     .def("is_valid", &pysimulation::is_valid)

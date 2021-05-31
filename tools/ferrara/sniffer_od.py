@@ -25,29 +25,36 @@ if __name__ == '__main__':
   freq = f'{args.dt}s'
   if args.range == '':
     tok = args.input[:args.input.rfind('.')].split('_')
-    start = datetime.strptime(tok[-2], dt_fmt)
-    stop = datetime.strptime(tok[-1], dt_fmt)
+    try:
+      start = datetime.strptime(tok[-2], dt_fmt)
+      stop = datetime.strptime(tok[-1], dt_fmt)
+    except:
+      start = datetime.strptime(tok[-3], dt_fmt)
+      stop = datetime.strptime(tok[-2], dt_fmt)
   else:
-    start = datetime.strptime(args.range.split('|')[0], dt_fmt)
-    stop = datetime.strptime(args.range.split('|')[1], dt_fmt)
+    rstart, rstop = args.range.split('|')
+    start = datetime.strptime(rstart, dt_fmt)
+    stop = datetime.strptime(rstop, dt_fmt)
   base = f'{base}_{start.strftime(dt_fmt)}_{stop.strftime(dt_fmt)}_{args.dev}'
 
   tnow = datetime.now()
   df = pd.read_csv(args.input, sep=';')
   df.date_time = pd.to_datetime(df.date_time)
+  df.date_time = df.date_time.dt.tz_localize(None)
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
   df = df[ df.kind == args.dev ]
-  df['station_code'] = df.station_name.str[-2]
+  df['station_code'] = df.station_name.str[-1]
   df['date'] = [ t.date() for t in df.date_time ]
-  #print(df)
+  # print(df)
+  print(df.columns)
   print(f'Data parse and prep {datetime.now() - tnow} s')
-
 
   tnow = datetime.now()
   station_dict = dict(df[['station_name', 'station_code']].groupby(['station_name', 'station_code']).count().index)
+  print( station_dict )
+  
   station_dict = { int(v) : k for k, v in sorted(station_dict.items(), key=lambda i: i[1]) }
   nstation = len(station_dict)
-  #print( station_dict )
   print(f'Groupby station_name {nstation} took {datetime.now() - tnow} s')
 
   tnow = datetime.now()
@@ -56,12 +63,12 @@ if __name__ == '__main__':
   print(f'Groupby date {ndate} took {datetime.now() - tnow} s')
 
   tnow = datetime.now()
-  grp = df.groupby('mac_address')
+  grp = df.groupby('mac-address')
   uniq_ids = len(grp)
   print(f'Groupby mac_address took {datetime.now() - tnow} s')
 
   tnow = datetime.now()
-  grpd = df.groupby(['date', 'mac_address'])
+  grpd = df.groupby(['date', 'mac-address'])
   print(f'Groupby date+mac_address took {datetime.now() - tnow} s')
 
   tnow = datetime.now()

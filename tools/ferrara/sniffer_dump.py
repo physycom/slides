@@ -38,29 +38,53 @@ if __name__ == '__main__':
         username=      config['user'],
         password=      config['pwd'],
         authSource=    config['db'],
-        authMechanism= config['aut']
+        authMechanism= config['aut'],
+        #compressors=   'snappy',
       )
       table = config['table']
       print(f'Authentication ok')
 
-      if args.dev == 'both':
-        cursor = client['symfony'][table].find({
-          'date_time' : {
-            '$gte' : start_date,
-            '$lt'  : stop_date
+      tquery = datetime.now()
+      cursor = client['symfony'][table].aggregate([
+        {
+          '$match' : {
+            'date_time' : {
+              '$gte' : start_date,
+              '$lt'  : stop_date
+            }
           }
-        })
-      else:
+        },
+        {
+          '$group' : {
+            '_id' : "$station_id"
+          }
+        }
+      ])
+      station_list = list(cursor)
+      print(f'Retrieved stations : {station_list}')
+
+      df = pd.DataFrame()
+      for s in station_list:
+        stid = s['_id']
+        print(f'Query for station {stid}')
+        tchunk = datetime.now()
         cursor = client['symfony'][table].find({
           'date_time' : {
             '$gte' : start_date,
             '$lt'  : stop_date
           },
-          'kind' : args.dev
+          'station_id' : stid
         })
 
-      df = pd.DataFrame(list(cursor))
-      print(f'Received {len(df)} data')
+        dfi = pd.DataFrame(list(cursor))
+        tchunk = datetime.now() - tchunk
+        print(f'Data for station {stid} len {len(dfi)} in : {tchunk}')
+        #print(dfi)
+        df = df.append(dfi)
+
+      print(df)
+      tquery = datetime.now() - tquery
+      print(f'Received {len(df)} data in {tquery}')
 
     elif args.db == 'mysql':
       config = config['mysql']
@@ -78,6 +102,14 @@ if __name__ == '__main__':
         'Corso di p. reno /via ragno (4)',
         'Castello via martiri (1)'
       ]
+      station_list = [
+        'Ferrara-1',
+        'Ferrara-2',
+        'Ferrara-3',
+        'Ferrara-4',
+        'Ferrara-5',
+        'Ferrara-6'
+      ]
       station_filter = ' OR '.join([ f"s.station_name = '{name}'" for name in station_list ])
       query = f"""
         SELECT
@@ -91,15 +123,16 @@ if __name__ == '__main__':
       print(query)
       cursor.execute(query)
       result = cursor.fetchall()
-      print(result)
+      #print(result)
       sidconv = { v[0] : v[1] for v in result }
-      print('sid', sidconv)
+      #print('sid', sidconv)
 
       query = f"""
         SELECT
           ds.date_time as date_time,
           ds.id_device as mac_address,
-          ds.id_station as station_mysql_id
+          ds.id_station as station_mysql_id,
+          'wifi' as kind
         FROM
           DevicesStations ds
         WHERE
@@ -107,7 +140,7 @@ if __name__ == '__main__':
           AND
           (ds.id_station IN {tuple(sidconv.keys())} )
       """
-      print(query)
+      #print(query)
       #exit(1)
 
       tquery = datetime.now()

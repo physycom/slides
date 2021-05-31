@@ -11,29 +11,23 @@ from dateutil import tz
 ##########################
 #### log function ########
 ##########################
-def logs(s):
-  head = '{} [conf] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
-  return head + s
-
-def log_print(s, logger = None):
-  if logger:
-    logger.info(logs(s))
-  else:
-    print(logs(s), flush=True)
+import logging
+logger = logging.getLogger('conf')
 
 #####################
 ### config class ####
 #####################
 class conf:
 
-  def __init__(self, config, logger = None):
-    self.logger = logger
+  def __init__(self, config):
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.creation_dt = 30
     self.rates_dt = 5 * 60
 
     self.HERE = tz.tzlocal()
     self.UTC = tz.gettz('UTC')
+
+    self.remove_local_output = config['remove_local_output']
 
     try:
       sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
@@ -42,7 +36,6 @@ class conf:
     except Exception as e:
       raise Exception('[conf] library load failed : {}'.format(e))
 
-    self.config = config
     self.cparams = { k : os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'templates', '{}_template.json'.format(k)) for k in config['cities'].keys() }
     #print(self.cparams)
 
@@ -51,13 +44,16 @@ class conf:
       if not os.path.exists(self.wdir): os.mkdir(self.wdir)
 
       config['model_data']['work_dir'] = f'{self.wdir}/m_data'
-      self.ms = model_slides(config['model_data'], self.logger)
+      self.ms = model_slides(config['model_data'])
 
       config['kml_data']['work_dir'] = f'{self.wdir}/kml_data'
-      self.dbk = db_kml(config['kml_data'], self.logger)
+      self.dbk = db_kml(config['kml_data'])
 
     except Exception as e:
       raise Exception('conf init failed : {}'.format(e)) from e
+
+    self.config = config
+
 
   def generate(self, start_date, stop_date, citytag):
     #print(citytag)
@@ -77,11 +73,11 @@ class conf:
     conf['state_basename'] = self.wdir + '/{}'.format(citytag)
 
     # attractions
-    attr = self.dbk.get_attractions(citytag)
+    attr = self.dbk.get_attractions(citytag, start)
     max_attr = 15
     if len(attr) > max_attr:
-      log_print(f'*********** Lowering attractions number to {max_attr}', self.logger)
-      attr = { k : v for k, v in list(attr.items())[:6] }
+      logger.warning(f'*********** Lowering attractions number to {max_attr}')
+      attr = { k : v for k, v in list(attr.items())[:max_attr] }
     conf['attractions'] = attr
 
     # blank timetable
@@ -110,24 +106,38 @@ class conf:
       params = self.ms.mod_fe.station_map
       snif_src.update({ src : snif for snif in params for src in params[snif] })
       src_num = len(snif_src)
-      #print(snif_src)
       norm_src = [ n for n, v in snif_src.items() if v == None ]
       m0_num = len(norm_src)
-      #print(norm_src)
-      log_print(f'Caveat FE - src {src_num}, m0_src {m0_num}', self.logger)
+      logger.debug(f'Caveat FE - src {src_num}, m0_src {m0_num}')
       norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
       norm_wei /= ( norm_wei.sum() * src_num / m0_num )
-      #print(norm_wei)
+      for s, c in zip(norm_src, norm_wei):
+        #print(f'{s}, {srcdata[s].sum()}, {c}')
+        srcdata[s] *= c
+      synth_src = [ s for s in src_list if s not in norm_src ]
+      for s in synth_src:
+        #print(f"{s} {src_list[s]['weight']}")
+        srcdata[s] *= src_list[s]['weight'] / src_num * ( src_num - m0_num )
+    elif citytag == 'dubrovnik':
+      snif_src = { src : None for src in src_list }
+      params = self.ms.mod_du.source_map
+      snif_src.update({ snif : 'data' for snif in params.values() })
+      src_num = len(snif_src)
+      norm_src = [ n for n, v in snif_src.items() if v == None ]
+      m0_num = len(norm_src)
+      logger.debug(f'Caveat DU - src {src_num}, m0_src {m0_num}')
+      norm_wei = np.asarray([ src_list[n]['weight'] for n in norm_src ])
+      norm_wei /= ( norm_wei.sum() * src_num / m0_num )
       for s, c in zip(norm_src, norm_wei):
         srcdata[s] *= c
     else:
       for s in src_list:
-        srcdata[s] /= len(src_list)
+        srcdata[s] *= src_list[s]['weight']
 
     # log totals for debug
     for c, v in srcdata.sum().items():
-      log_print(f'Source {c} total pawn : {v:.2f}', self.logger)
-    log_print(f'Simulation total pawn ; {srcdata.sum().sum():.2f}', self.logger)
+      logger.debug(f'Source {c} total pawn : {v:.2f}')
+    logger.debug(f'Simulation total pawn ; {srcdata.sum().sum():.2f}')
 
     # cast dataframe to timetable json format
     for tag in srcdata.columns:
@@ -144,7 +154,7 @@ class conf:
       }
       tt.update(rates)
 
-      beta_bp = 0.2
+      beta_bp = 0.5
       speed_mps = 1.0
 
       sources.update({
@@ -152,8 +162,8 @@ class conf:
           'creation_dt' : self.creation_dt,
           'creation_rate' : [ v for v in tt.values() ],
           'source_location' : {
-            'lat' : src['lat'],
-            'lon' : src['lon']
+            'lat' : src_list[tag]['lat'],
+            'lon' : src_list[tag]['lon']
           },
           'pawns_from_weight': {
             'tourist' : {
@@ -184,7 +194,7 @@ class conf:
       'creation_rate' : [ int(v) for v in tt.values() ],
       'pawns' : {
         'locals' : {
-          'beta_bp_miss'   : 0, #1, #0.99,
+          'beta_bp_miss'   : 0,
           'start_node_lid' : -1,
           'dest'           : -1
         }
@@ -199,9 +209,20 @@ class conf:
 
 if __name__ == '__main__':
   import argparse
+  import coloredlogs
+
   parser = argparse.ArgumentParser()
   parser.add_argument('-c', '--cfg', help='prepare config file', required=True)
   args = parser.parse_args()
+
+  console_formatter = coloredlogs.ColoredFormatter('%(asctime)s [%(levelname)s] (%(name)s:%(funcName)s) %(message)s', "%H:%M:%S")
+  console_handler = logging.StreamHandler()
+  console_handler.setFormatter(console_formatter)
+  logging.basicConfig(
+    level=logging.DEBUG,
+    handlers=[console_handler]
+  )
+  logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
   with open(args.cfg) as cfgfile:
     config = json.loads(cfgfile.read())

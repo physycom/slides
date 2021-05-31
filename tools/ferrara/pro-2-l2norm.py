@@ -24,6 +24,14 @@ wdcat = {
   'Sun' : 'festivi'
 }
 
+def box_centered_kernel(tot_len, box_len):
+  pad_len = tot_len - box_len
+  kern = np.concatenate([
+    np.zeros((pad_len // 2)),
+    np.ones((box_len)) / box_len,
+    np.zeros((pad_len - pad_len // 2))# for odd box_len
+  ])
+  return kern
 
 if __name__ == '__main__':
   import argparse
@@ -32,26 +40,22 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('-d', '--data', help='counters data csv', required=True)
   parser.add_argument('-pc', '--plotconf', default='')
-  """
-  parser.add_argument('-s', '--show', action='store_true')
-  parser.add_argument('-fs', '--fine_sampling', type=int, default=10)
-  parser.add_argument('-os', '--out_sampling', type=int, default=300)
-  parser.add_argument('-in', '--interpolation', choices=['lin', 'no'], default='lin')
-  parser.add_argument('-a', '--aggr', choices=['rec', 'uniq'], default='uniq')
-  """
   args = parser.parse_args()
+
   filein = args.data
   base = filein[:filein.rfind('/')]
   tok = filein[:filein.find('/')].split('_')
-  start_date = tok[-2]
-  stop_date = tok[-1]
   fname = filein[filein.find('/')+1:filein.rfind('.')].split('_')
   fine_freq = fname[-2]
   interp = fname[-1]
 
   dt_fmt = '%Y%m%d-%H%M%S'
-  start = datetime.strptime(start_date, dt_fmt)
-  stop = datetime.strptime(stop_date, dt_fmt)
+  try:
+    start = datetime.strptime(tok[-2], dt_fmt)
+    stop = datetime.strptime(tok[-1], dt_fmt)
+  except:
+    start = datetime.strptime(tok[-3], dt_fmt)
+    stop = datetime.strptime(tok[-2], dt_fmt)
 
   stats = pd.read_csv(filein, sep=';', parse_dates=['time'], index_col='time')
   stats.index = stats.index.time
@@ -75,7 +79,10 @@ if __name__ == '__main__':
   print('ave\n', ave)
   ave.date = pd.to_datetime(ave.date)
   ave['wday'] = ave.date.dt.strftime('%a')
+
+  ave = ave[ ave.station_id != '4' ] # fix for missing data in dataset *****************
   #print(ave)
+
   dfave = ave.groupby(['station_id', 'wday', 'time']).mean()
   #print(dfave)
   smooths = {}
@@ -114,15 +121,20 @@ if __name__ == '__main__':
     smooths[sid] = smooth
   tave = datetime.now() - tnow
   print(f'Averaging done in {tave} for {smooths.keys()}')
+  print(smooths.keys())
+
 
   """
   Evaluate functional distance wrt ave signals
   """
   stats_smooth = pd.DataFrame(index=stats.index)
+  ma_size = 10
   for c in stats.columns:
     kern = box_centered_kernel(len(stats), ma_size)
     conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( stats[c].values ) * np.fft.fft(kern) )))
     stats_smooth[c] = conv
+  print(stats_smooth)
+  print(stats_smooth.columns)
 
   tnow = datetime.now()
   ldata = []
@@ -156,7 +168,7 @@ if __name__ == '__main__':
   ldf['l2_norm'] = ldf.l2_dist / ldf.l2_ave
   ldf['l2_norm_d'] = ldf.l2_dist_d / ldf.l2_ave_d
   #print(ldf)
-  ldf.to_csv(f'{base}/{fine_freq}_{interp}_l2norm.csv', sep=';', index=True)
+  # ldf.to_csv(f'{base}/{fine_freq}_{interp}_l2norm.csv', sep=';', index=True)
 
   """
   Rebuild full-time dataframe
@@ -214,7 +226,11 @@ if __name__ == '__main__':
     for s, v in selection.items() }
     ptag = 'pc'
   for s in selection:
-    dft = fullt[s]
+    try:
+      dft = fullt[s]
+    except:
+      print(f'Plot: station {s} not available')
+      continue
     dft = dft[ (dft.index >= selection[s]['start']) & (dft.index < selection[s]['stop']) ]
 
     fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10))
@@ -240,14 +256,16 @@ if __name__ == '__main__':
     dftemp = ldf[ ldf.station_id == s ]
     print(dftemp)
     ts = [ datetime(t.year, t.month, t.day).timestamp() for t in dftemp.date ]
-    range_start = selection[s]['start'].timestamp()
-    range_stop = (selection[s]['stop'] - timedelta(days=1)).timestamp()
+    sstart = selection[s]['start']
+    sstop = selection[s]['stop']
+    range_start = sstart.timestamp()
+    range_stop = sstop.timestamp()
     ts_ticks = ts
     ts_lbl = [ t.strftime('%y-%m-%d') for t in dftemp.date ]
     #ts_lbl = ts_lbl[::unders]
     #ts_lbl = [ t if i%3==0 else '' for i, t in enumerate(ts_lbl)]
-#    axes.plot(ts, dftemp['l2_norm'].values, 'r-o', label=f'Station {sid} ave', markersize=4)
-    axes.plot(ts, dftemp['l2_norm_d'].values, 'b-o', label=f'Station {s} ave_d', markersize=4)
+    axes.plot(ts, dftemp['l2_norm'].values, 'r-o', label=f'Station {s} l2 diff (fer/fest)', markersize=4)
+    axes.plot(ts, dftemp['l2_norm_d'].values, 'b-o', label=f'Station {s} l2 diff (weekday)', markersize=4)
     axes.axvspan(range_start, range_stop, color='gray', alpha=0.3)
     axes.set_xticks(ts_ticks)
     axes.set_xticklabels(ts_lbl, rotation=45)
@@ -259,5 +277,6 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     fig.subplots_adjust(top=0.95)
-    plt.suptitle(f'Station {s} anomaly analysis', y=0.98)
-    plt.savefig(f'{base}/{s}_{fine_freq}_avecompare_{ptag}.png')
+    plt.suptitle(f'Station {s} anomaly analysis, period {sstart} - {sstop}', y=0.98)
+    plt.savefig(f'{base}/{s}_{fine_freq}_aveanomaly_{ptag}.png')
+    plt.close()
