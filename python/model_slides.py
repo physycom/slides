@@ -118,13 +118,13 @@ class model_slides:
       except Exception as e:
         logger.warning(f'Model {m01} {tag} : {e}')
         data = pd.DataFrame()
-    elif city == 'sybenik':
-      m01 = 'SY'
-      try:
-        data = self.mod_sy.full_table(start, stop, tag, resampling=self.rates_dt)
-      except Exception as e:
-        logger.warning(f'Model {m01} {tag} : {e}')
-        data = pd.DataFrame()
+    # elif city == 'sybenik':
+      # m01 = 'SY'
+      # try:
+        # data = self.mod_sy.full_table(start, stop, tag, resampling=self.rates_dt)
+      # except Exception as e:
+        # logger.warning(f'Model {m01} {tag} : {e}')
+        # data = pd.DataFrame()
 
     elif 'm1' in model:
       m01 = 'm1'
