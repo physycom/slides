@@ -15,7 +15,7 @@ try:
   sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
   from model_ferrara import model_ferrara
   from model_dubrovnik import model_dubrovnik
-  from model_sybenik import model_sybenik
+  #from model_sybenik import model_sybenik
 except Exception as e:
   raise Exception('[model_slides] library load failed : {}'.format(e))
 
@@ -55,7 +55,7 @@ class model_slides:
     # init city-specific model
     self.mod_fe = model_ferrara(config['params']['ferrara'])
     self.mod_du = model_dubrovnik(config['params']['dubrovnik'])
-    self.mod_sy = model_sybenik(config['params']['sybenik'])
+    #self.mod_sy = model_sybenik(config['params']['sybenik'])
     self.models = {}
 
     # collect model1 filenames
