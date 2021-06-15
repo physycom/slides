@@ -44,7 +44,6 @@ class db_kml:
     }
     for c, mid in config['mymaps_id'].items():
       cities[c].update({ 'mid' : mid })
-
     self.cities = cities
 
   def parse_kml(self, kmlfile, citytag):
@@ -128,7 +127,6 @@ class db_kml:
       for pm in folder.Placemark:
         if pm.ExtendedData != None:
           name = pm.name.text.strip()
-
           # parse metadata
           for data in pm.ExtendedData.getchildren():
             if data.attrib['name'] == 'description':
@@ -326,20 +324,60 @@ class db_kml:
       vtime = row['visit_time']
       ott = [ range.split('-') for range in row['opening_timetable'].split('|') ]
       cds = row['closing_days'].split('|')
-      active_dt = row['active_dates'].split('|')
+      open_close_dt = row['active_dates'].split('|')
+      close_period = []
+      open_period = []
+      close_dt = []
+      open_dt = []
+      for i in open_close_dt:
+        if ":" in i:
+          if i.startswith('!'):
+            start_clos, end_clos = i[1:].split(':')
+            close_period.append([start_clos, end_clos])
+          else:
+            start_open, end_open = i.split(':')
+            open_period.append([start_open, end_open])
+        else:
+          if i.startswith('!'):
+            close_dt.append(i)
+          else:
+            open_dt.append(i)
+
+      #print('open_dt', open_dt)
+      #print('close_dt', close_dt)
+      #print('open_period', open_period)
+      #print('close_period', close_period)
       #print(ott)
-      #print(cds)
-      #print(active_dt)
+      #print("cds: ",  cds)
+
+      if len(open_dt) == 0:  #improve the elegance of all this logic
+        open_dt.append('all')
 
       # skip closing days
       if 'all' in cds or weekday in cds:
-        logger.warning(f'Attraction {name} is closed')
+        logger.warning(f'Attraction {name} is closed for all in weekday')
+        continue
+
+      # skip if today is in close date or period
+      if today in close_dt:
+        logger.warning(f'Attraction {name} is in close date')
+        continue
+
+      close_founded = False
+      for cp in close_period:
+        start = cp[0]
+        stop = cp[1]
+        if today >= start and today <= stop and not today in open_dt: #close in a period but open in a specific date
+          close_founded = True
+
+      if close_founded == True:
+        logger.warning(f'Attraction {name} is in close period {start}:{stop} ')
         continue
 
       # skip non-active date if needed
-      if not 'all' in active_dt:
-        if not today in active_dt:
-          logger.warning(f'Attraction {name} is not in active day')
+      if not 'all' in open_dt:
+        if not today in open_dt:
+          logger.warning(f'Attraction {name} is not in active day all')
           continue
 
       capacity = row['capacity']
@@ -364,12 +402,20 @@ class db_kml:
       #print(tt)
       timecap = list(tt.values())
 
+      #transform weight from double to vector
+      weight_vector=[]
+      for i in timecap:
+        if i==0:
+          weight_vector.append(0)
+        else:
+          weight_vector.append(weight)
+
       # write low level attraction json format
       attr.update({
         name : {
           'lat'        : lat,
           'lon'        : lon,
-          'weight'     : weight,
+          'weight'     : weight_vector,
           'timecap'    : timecap,
           'visit_time' : vtime
         }

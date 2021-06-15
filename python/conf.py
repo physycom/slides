@@ -224,7 +224,7 @@ if __name__ == '__main__':
   )
   logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
-  with open(args.cfg) as cfgfile:
+  with open(args.cfg, encoding="utf8") as cfgfile:
     config = json.loads(cfgfile.read())
 
   try:

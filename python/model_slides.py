@@ -15,6 +15,7 @@ try:
   sys.path.append(os.path.join(os.environ['WORKSPACE'], 'slides', 'python'))
   from model_ferrara import model_ferrara
   from model_dubrovnik import model_dubrovnik
+  from model_bari import model_bari
 except Exception as e:
   raise Exception('[model_slides] library load failed : {}'.format(e))
 
@@ -54,6 +55,7 @@ class model_slides:
     # init city-specific model
     self.mod_fe = model_ferrara(config['params']['ferrara'])
     self.mod_du = model_dubrovnik(config['params']['dubrovnik'])
+    self.mod_ba = model_bari(config['params']['bari'])
     self.models = {}
 
     # collect model1 filenames
@@ -113,6 +115,13 @@ class model_slides:
       m01 = 'DU'
       try:
         data = self.mod_du.full_table(start, stop, tag, resampling=self.rates_dt)
+      except Exception as e:
+        logger.warning(f'Model {m01} {tag} : {e}')
+        data = pd.DataFrame()
+    elif city == 'bari':
+      m01 = 'BA'
+      try:
+        data = self.mod_ba.full_table(start, stop, tag, resampling=self.rates_dt)
       except Exception as e:
         logger.warning(f'Model {m01} {tag} : {e}')
         data = pd.DataFrame()
