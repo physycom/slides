@@ -1,5 +1,5 @@
 # launch with
-# uvicorn simulation-ws:app --reload --port 9999
+# uvicorn sim-ws-oauth2:app --reload --port 9999
 
 # and test with
 # GET test
@@ -74,7 +74,7 @@ tags_metadata = [
 ]
 
 app = FastAPI(
-  title="SLIDES pedestrian fluxes simulator",
+  title="SLIDES pedestrian on simwsouaut2 fluxes simulator",
   description="A web api providing pedestrians mobility prediction algorithm",
   version=ver,
   openapi_tags=tags_metadata
@@ -133,7 +133,8 @@ async def startup_event():
     console_handler.setFormatter(console_formatter)
 
     time_formatter = logging.Formatter('%(asctime)s [%(levelname)s] (%(name)s:%(funcName)s) %(message)s', "%y-%m-%d %H:%M:%S")
-    time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
+    # time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
+    time_handler = logging.FileHandler(f'{log_folder}/slides_ws.log')
     time_handler.setFormatter(time_formatter)
 
     # clear uvicorn logger
@@ -155,7 +156,8 @@ async def startup_event():
     if not os.path.exists(log_folder): os.makedirs(log_folder)
 
     time_formatter = logging.Formatter('%(asctime)s [%(process)d] [%(levelname)s] (%(name)s) %(message)s', "%y%m%d %H:%M:%S")
-    time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
+    # time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
+    time_handler = logging.FileHandler(f'{log_folder}/slides_ws.log')
     time_handler.setFormatter(time_formatter)
 
     logging.basicConfig(
