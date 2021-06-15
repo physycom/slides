@@ -221,7 +221,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   # init conf
   try:
     cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf', 'conf.json')
-    with open(cfg_file) as cin: cfg = json.load(cin)
+    with open(cfg_file, encoding="utf8") as cin: cfg = json.load(cin)
     cw = conf(cfg)
   except Exception as e:
     logger.error(f'conf init failed : {e}')
