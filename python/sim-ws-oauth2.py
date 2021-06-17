@@ -215,7 +215,7 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   out_type = body.out_type
   logger.info(f'Parameters {start_date} - {stop_date} sampling {sampling_dt} city {citytag} out_type {out_type}')
 
-  sim_id = os.getpid()
+  sim_id = int(datetime.now().strftime('%y%m%d%H%M%S%f'))
   logger.info(f'Simulation id {sim_id} ')
 
   # init conf
@@ -291,12 +291,11 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
       pof = s.grid_outfile()
       logger.info(f'Grid counters output file : {pof}')
 
-      dfp = pd.read_csv(pof, sep=" |,|=", usecols=[2,4,5], engine='python', dtype=int)
+      dfp = pd.read_csv(pof, sep=" |,|=", usecols=[2,4,5], engine='python')
       dfp.columns = ['id', 'cnt', 'timestamp']
       dfp.timestamp = (dfp.timestamp * 1e-9).astype('int')
       #dfp['datetime'] = pd.to_datetime(dfp.timestamp, unit='s', utc=True).dt.tz_convert('Europe/Rome')
       dfp = dfp[ dfp.cnt != 0 ]
-      #print(dfp)
       grid_cnt = {
           int(ts) : { str(gid) : int(val) for gid, val in dft[['id', 'cnt']].astype(int).values }
         for ts, dft in dfp.groupby('timestamp')

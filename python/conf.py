@@ -136,8 +136,8 @@ class conf:
 
     # log totals for debug
     for c, v in srcdata.sum().items():
-      logger.debug(f'Source {c} total pawn : {v:.2f}')
-    logger.debug(f'Simulation total pawn ; {srcdata.sum().sum():.2f}')
+      logger.info(f'Source {c} total pawn : {v:.2f}')
+    logger.info(f'Simulation total pawn ; {srcdata.sum().sum():.2f}')
 
     # cast dataframe to timetable json format
     for tag in srcdata.columns:
