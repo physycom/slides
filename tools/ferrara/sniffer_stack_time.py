@@ -24,8 +24,8 @@ if __name__ == '__main__':
   parser.add_argument('-sh', '--show', action='store_true')
   parser.add_argument('-r', '--range', help='range', default='', type=str)
   parser.add_argument('-d', '--data', help='counters data csv', required=True)
-  parser.add_argument('-s', '--station_name', help='station name', default='Ferrara-6', type=str)
   parser.add_argument('-f', '--frequency', help='sub-df frequency in minutes', default='60min', type=str)
+  parser.add_argument('-s', '--station_name', help='station name', choices=['Ferrara-1', 'Ferrara-2', 'Ferrara-3','Ferrara-4', 'Ferrara-5', 'Ferrara-6'], default='Ferrara-6', type=str)
 
   args = parser.parse_args()
 
@@ -49,11 +49,12 @@ if __name__ == '__main__':
       start = datetime.strptime(args.range.split('|')[0], dt_fmt)
       stop = datetime.strptime(args.range.split('|')[1], dt_fmt)
 
+
     diff_h = (stop - start)
     diff_min = diff_h.total_seconds() / 60
-    diff_time = diff_min / int(args.frequency[:2])
+    diff_time = diff_min / int(args.frequency[:-3])
 
-    height = int(args.frequency[:2]) * (9/10)
+    height = int(args.frequency[:-3]) * (9/10)
 
     df = df.loc[ (df.index >= start) & (df.index < stop) & (df['station_name'] == args.station_name)]
 
