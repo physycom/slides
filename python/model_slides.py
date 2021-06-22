@@ -16,7 +16,7 @@ try:
   from model_ferrara import model_ferrara
   from model_dubrovnik import model_dubrovnik
   from model_bari import model_bari
-  #from model_sybenik import model_sybenik
+  from model_sybenik import model_sybenik
 except Exception as e:
   raise Exception('[model_slides] library load failed : {}'.format(e))
 
@@ -56,8 +56,8 @@ class model_slides:
     # init city-specific model
     self.mod_fe = model_ferrara(config['params']['ferrara'])
     self.mod_du = model_dubrovnik(config['params']['dubrovnik'])
-    self.mod_ba = model_bari(config['params']['bari'])
-    #self.mod_sy = model_sybenik(config['params']['sybenik'])
+    # self.mod_ba = model_bari(config['params']['bari'])
+    self.mod_sy = model_sybenik(config['params']['sybenik'])
 
     self.models = {}
 
@@ -75,7 +75,7 @@ class model_slides:
                 continue
               #print(city, tag, mod)
               fname = os.path.join(root, *subdirs, f)
-              #print(fname)
+              # print(fname)
               self.import_model1(city, tag, fname)
             except Exception as e:
               logger.error('Problem parsing model1 file {} : {}'.format(f, e))
@@ -128,13 +128,13 @@ class model_slides:
       except Exception as e:
         logger.warning(f'Model {m01} {tag} : {e}')
         data = pd.DataFrame()
-    # elif city == 'sybenik':
-      # m01 = 'SY'
-      # try:
-        # data = self.mod_sy.full_table(start, stop, tag, resampling=self.rates_dt)
-      # except Exception as e:
-        # logger.warning(f'Model {m01} {tag} : {e}')
-        # data = pd.DataFrame()
+    elif city == 'sybenik':
+      m01 = 'SY'
+      try:
+        data = self.mod_sy.full_table(start, stop, tag, resampling=self.rates_dt)
+      except Exception as e:
+        logger.warning(f'Model {m01} {tag} : {e}')
+        data = pd.DataFrame()
 
     elif 'm1' in model:
       m01 = 'm1'
@@ -143,8 +143,6 @@ class model_slides:
     else:
       data = pd.DataFrame()
 
-    #print(data)
-    #print(f'tag {tag}')
 
     if not tag in data.columns:
       m01 = 'm0'
@@ -152,7 +150,7 @@ class model_slides:
       data = pd.read_csv(mfile, sep=';')
       dtot = self.params[city]['daily_t']
       data = self.rescale_data(start, stop, data, tot=dtot).rename(columns={'data':tag})
-      #print('rescaled\n', data)
+      # print('rescaled\n', data)
 
     logger.info(f'Data created for ({city}, {tag}) mode {m01}')
     return data
@@ -367,7 +365,7 @@ class model_slides:
 
     df = df[['tot-smooth']].rename({'tot-smooth':'data'})
     df = df[ (df.index >= start) & (df.index < stop) ]
-    #print(df)
+    # print(df)
     return df
 
 if __name__ == '__main__':
