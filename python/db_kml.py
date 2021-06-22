@@ -183,7 +183,9 @@ class db_kml:
           if point:
             role = 'none'
             if re.match('.*source.*', description) != None: role = 'source'
-            if re.match('.*A.*', name) != None: role = 'attraction'
+            # if re.match('.*A.*', name) != None: role = 'attraction'
+            if re.match('.*A.*', description) != None: role = 'attraction'
+
 
             lon, lat, z = point[0].coordinates.text.split(',')
             locations[name.replace('- A', '').strip()] = {
