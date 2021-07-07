@@ -23,7 +23,7 @@ if __name__ == '__main__':
   base_save = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_lavoro', 'sybenik', 'data_analysis')
   if not os.path.exists(base_save): os.mkdir(base_save)
 
-  with open(args.cfg) as f:
+  with open(args.cfg, encoding='utf-8') as f:
     config = json.load(f)
 
   start_date = config['start_date']
@@ -72,7 +72,7 @@ if __name__ == '__main__':
       cursor.execute(query)
       result = cursor.fetchall()
       camconv = { v[0] : v[1] for v in result }
-      # print('sid', sidconv)
+      # print('sid', camconv)
 
       query = f"""
         SELECT
