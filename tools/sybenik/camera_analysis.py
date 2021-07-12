@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import os
 import json
@@ -17,8 +18,13 @@ if __name__ == '__main__':
   parser.add_argument('-c', '--cfg', help='config file', required=True)
   parser.add_argument('-s', '--show', action='store_true')
   parser.add_argument('-db', '--db', choices=['mongo', 'mysql'], default='mysql')
+  parser.add_argument('-wd', '--weekDay', default='Thu' , type=str)
+  parser.add_argument('-wn', '--weekNumber', default=27 , type=int)
+  parser.add_argument('-t', '--dt', type=int, default=300)
 
   args = parser.parse_args()
+
+  freq = f'{args.dt}s'
 
   base_save = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_lavoro', 'sybenik', 'data_analysis')
   if not os.path.exists(base_save): os.mkdir(base_save)
@@ -75,7 +81,7 @@ if __name__ == '__main__':
     for locName, dfave in ave.groupby(['LOC']):
       # print(locName)
       # print(dfave)
-      ave = dfave.groupby(['DATETIME',  pd.Grouper(freq='300s')]).sum()
+      ave = dfave.groupby(['DATETIME',  pd.Grouper(freq = freq)]).sum()
       ave = ave.reset_index(level=[0])
       ave = ave.drop(columns='DATETIME')
       ave = ave.groupby('DATETIME').sum()
@@ -83,7 +89,7 @@ if __name__ == '__main__':
       s_fill_date = pd.to_datetime(str(df.index.date[0]) + ' ' + '00:00:00')
       e_fill_date = pd.to_datetime(str(df.index.date[-1]) + ' ' + '23:59:59')        
 
-      fullt = pd.date_range(start=s_fill_date,end= e_fill_date, freq=f'5min')
+      fullt = pd.date_range(start=s_fill_date,end= e_fill_date, freq = freq)
 
       ave = (ave.reindex(fullt, fill_value=0).reset_index().reindex(columns=['COUNTER'])).set_index(fullt)
       # ave = (ave.reindex(fullt).reset_index().reindex(columns=['COUNTER'])).set_index(fullt)
@@ -110,7 +116,7 @@ if __name__ == '__main__':
     curves = []
 
     for locName, dfg in df.groupby(['LOC']):
-      df =  dfg.groupby(['DATETIME', pd.Grouper(freq='300s')]).sum()
+      df =  dfg.groupby(['DATETIME', pd.Grouper(freq = freq)]).sum()
       df = df.reset_index(level=[0])
       df = df.drop(columns='DATETIME')
       df = df.interpolate(limit_direction='both')
@@ -196,7 +202,7 @@ if __name__ == '__main__':
         s_date = pd.to_datetime(str(dfw.last('1D').index.date[0]) + ' ' + '00:00:00')
         e_date = pd.to_datetime(str(dfw.last('1D').index.date[0]) + ' ' + '23:59:59')
 
-        fullt = pd.date_range(start=s_date,end= e_date, freq=f'5min')
+        fullt = pd.date_range(start=s_date,end= e_date, freq = freq)
 
         df_ave = pd.read_csv(f'{output}/df_ave_{locName}.csv', sep = ';', index_col=[0])
         df_ave = df_ave.loc[wday]
@@ -242,14 +248,14 @@ if __name__ == '__main__':
 
         plt.tight_layout()
         fig2.subplots_adjust(top=0.9)
-        ptitle = f'Comparison in "{location_map[locName]}"\non {df_anal.index.date[0]}\nAve from {startdate.strftime("%Y-%m-%d")} to {enddate.strftime("%Y-%m-%d")}'
+        ptitle = f'Comparison in "{location_map[locName]}"\non {df_anal.index.date[0]}\nAve from {startdate.strftime("%Y-%m-%d")} to {enddate.strftime("%Y-%m-%d")} @ {freq}'
         plt.suptitle(ptitle, y=0.98)
 
         comparison_day = f'{comparison}/comparison_day'
         if not os.path.exists(comparison_day): os.mkdir(comparison_day)
         averanged = f'{comparison_day}/ave_{startdate.strftime("%Y%m%d")}_{enddate.strftime("%Y%m%d")}'
         if not os.path.exists(averanged): os.mkdir(averanged)
-        plt.savefig(f'{averanged}/{locName}_{df_anal.index.date[0].strftime("%Y%m%d")}_{wday}.png')
+        plt.savefig(f'{averanged}/{locName}_{df_anal.index.date[0].strftime("%Y%m%d")}_{wday}_{freq}.png')
 
         plt.close()
         fig2.clf()
@@ -257,7 +263,7 @@ if __name__ == '__main__':
     s_date = pd.to_datetime(str(df.index.date[0]))
     e_date = pd.to_datetime(str(df.index.date[-1]))
 
-    fullt = pd.date_range(start=s_date,end= e_date, freq=f'5min')
+    fullt = pd.date_range(start=s_date,end= e_date, freq = freq)
 
     ts = [ t.timestamp() for t in fullt ]
     tus = 100
@@ -296,12 +302,12 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     fig.subplots_adjust(top=0.9)
-    ptitle = f'Number of People'
+    ptitle = f'Number of People @ {freq}'
     plt.suptitle(ptitle, y=0.98)
     if args.show:
       plt.show()
     else:
-      plt.savefig(f'{output}/compare.png')
+      plt.savefig(f'{output}/compare_at_{freq}.png')
 
     plt.clf()
     plt.close()  
@@ -323,13 +329,13 @@ if __name__ == '__main__':
       mask = (df_time.hours >= start_hour.hour) & (df_time.hours < end_hour.hour)
       df_time = df_time.loc[mask]
 
-      df_time = df_time.groupby(['DATETIME',  pd.Grouper(freq='300s')]).sum()
+      df_time = df_time.groupby(['DATETIME',  pd.Grouper(freq = freq)]).sum()
       df_time = df_time.reset_index(level=[0])
       df_time = df_time.drop(columns=['DATETIME', 'hours'])
       df_time = df_time.groupby('DATETIME').sum()  
       df_time['WEEK_NUMBER'] = df_time.index.isocalendar().week
       for week_num, df_week in df_time.groupby(['WEEK_NUMBER']):
-        if week_num == 27:
+        if week_num == args.weekNumber:
           df_week = df_week.drop(columns=['WEEK_NUMBER'])
           mean_list = []
           for time, df_hour in df_week.groupby([df_week.index.time]):
@@ -337,7 +343,7 @@ if __name__ == '__main__':
 
           s_fake_date = pd.to_datetime('2021-01-01 17:00:00')
           e_fake_date = pd.to_datetime('2021-01-01 20:59:59')
-          fullt = pd.date_range(start = s_fake_date,end= e_fake_date, freq=f'5min')
+          fullt = pd.date_range(start = s_fake_date,end= e_fake_date, freq = freq)
           mean_df = pd.DataFrame(index=fullt)
           mean_df['COUNTER'] = mean_list  
           ma_size = 5 # running average idx interval from time in seconds
@@ -350,6 +356,13 @@ if __name__ == '__main__':
           curves = []          
 
           for data, df_data in df_week.groupby([df_week.index.date]):
+
+            if len(df_data) != len(mean_df):
+              s_fill_date = pd.to_datetime(str(df_data.index.date[0]) + ' ' +  '17:00:00')
+              e_fill_date = pd.to_datetime(str(df_data.index.date[0]) + ' ' +  '20:59:59')
+              fillt = pd.date_range(start = s_fill_date,end= e_fill_date, freq = freq)
+              df_data = (df_data.reindex(fillt, fill_value=0).reset_index().reindex(columns=['COUNTER'])).set_index(fillt)
+
             ma_size = 5 # running average idx interval from time in seconds
             kern = box_centered_kernel(len(df_data), ma_size)
             conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( df_data.COUNTER ) * np.fft.fft(kern) )))
@@ -372,12 +385,13 @@ if __name__ == '__main__':
             data_list = []
             medie_list = []
             diff_list = []
-            if wday == 'Thu':
+            if wday == args.weekDay:
               data_list = df_data['SMOOTH'].tolist()
               medie_list = mean_df['SMOOTH'].tolist() 
+
               zip_obj = zip(data_list, medie_list)
               for data_listi, medie_listi in zip_obj:
-                diff_list.append(data_listi - medie_listi)
+                diff_list.append(((data_listi - medie_listi)/medie_listi)*100)
 
               ax = axs2[0]
               ax.plot(ts, df_data.SMOOTH, '-o', label=f'{wday}, {df_data.index.date[0]}', markersize=4)
@@ -397,13 +411,13 @@ if __name__ == '__main__':
               ax.grid(which='minor', linestyle='--')
               ax.set_xticks(ts_ticks)
               ax.set_xticklabels(ts_lbl, rotation=45, ha='right')
-              ax.set_ylabel('Differences')
+              ax.set_ylabel('Differences [%]')
 
               ax.set_xlabel('Time [HH:MM]')
 
               plt.tight_layout()
               fig2.subplots_adjust(top=0.9)
-              ptitle = f'Comparison between Thuesday and weekly mean in {location_map[locName]}\nWeek: {week_num}'
+              ptitle = f'Comparison between {wday}day and weekly mean in {location_map[locName]}\nWeek: {week_num}'
               plt.suptitle(ptitle, y=0.98)
               if args.show:
                 plt.show()
@@ -411,7 +425,7 @@ if __name__ == '__main__':
                 thisday = df_data.index.date[0].strftime('%Y%m%d')
                 compare_weekly = f'{output}/comparison/diff_week_{week_num}'
                 if not os.path.exists(compare_weekly): os.mkdir(compare_weekly)
-                plt.savefig(f'{compare_weekly}/diff_{locName}__week_num_{week_num}_{wday}_{thisday}.png')
+                plt.savefig(f'{compare_weekly}/diff_{locName}__week_num_{week_num}_{wday}_{thisday}_{freq}.png')
 
               plt.clf()
               plt.close()
@@ -457,7 +471,7 @@ if __name__ == '__main__':
             comparison = f'{output}/comparison'
             all_week_day = f'{comparison}/week_data_in week_{week_num}'
             if not os.path.exists(all_week_day): os.mkdir(all_week_day)
-            plt.savefig(f'{all_week_day}/week_num_{week_num}_{locName}.png')
+            plt.savefig(f'{all_week_day}/week_num_{week_num}_{locName}_{freq}.png')
     
           plt.clf()
           plt.close()
