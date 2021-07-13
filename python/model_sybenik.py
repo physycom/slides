@@ -73,7 +73,7 @@ class model_sybenik():
       # print(result)
       tquery = datetime.now() - tquery
       if len(result) == 0:
-        raise Exception(f'[mod_fe] Empty mysql query result')
+        raise Exception(f'[mod_sy] Empty mysql query result')
 
       df1 = pd.DataFrame(result)
       df1.columns =  cursor.column_names
@@ -82,15 +82,13 @@ class model_sybenik():
       df = df1
       df.index = pd.to_datetime(df.index).tz_localize(None)
 
-      if resampling != None and resampling < self.rates_dt:
+      if resampling != None:# and resampling < self.rates_dt:
         resampling_min = resampling // 60
 
         df = df.groupby(df.index).sum('COUNTER')
         df = df.drop(columns='BARRIER_UID')
 
         df = df.resample(f'{resampling}s').sum()
-
-        df_start_time = df.index[0] - timedelta(minutes=resampling_min)
 
         start_date = start.replace(
           minute=resampling_min*(start.minute//resampling_min),
@@ -110,6 +108,21 @@ class model_sybenik():
         df = df.rename(columns = {'COUNTER' : tag})
 
         data = df
+
+        # def box_centered_kernel(tot_len, box_len):
+        #   pad_len = tot_len - box_len
+        #   kern = np.concatenate([
+        #   np.zeros((pad_len // 2)),
+        #   np.ones((box_len)) / box_len,
+        #   np.zeros((pad_len - pad_len // 2))# for odd box_len
+        #   ])
+        #   return kern
+        
+        # ma_size = 5 # running average idx interval from time in seconds
+        # kern = box_centered_kernel(len(data), ma_size)
+        # conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( data.tag ) * np.fft.fft(kern) )))
+        # data.tag = conv
+
         print(data)
         return data
 
