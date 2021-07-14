@@ -4,6 +4,7 @@
 import os
 import json
 import argparse
+import statistics
 import numpy as np
 from numpy.core.numeric import full
 import pandas as pd
@@ -21,6 +22,7 @@ if __name__ == '__main__':
   parser.add_argument('-wd', '--weekDay', default='Thu' , type=str)
   parser.add_argument('-wn', '--weekNumber', default=27 , type=int)
   parser.add_argument('-t', '--dt', type=int, default=300)
+  parser.add_argument('-r', '--range', type=str, default='17:00:00|20:59:59')
 
   args = parser.parse_args()
 
@@ -243,7 +245,7 @@ if __name__ == '__main__':
         ax.set_xticks(ts_ticks)
         ax.set_xticklabels(ts_lbl, rotation=45, ha='right')
         ax.set_ylabel('Counter')
-        # ax.set_ylim(0, 50)
+        ax.set_ylim(0, 170)
         ax.set_xlabel('Daytime [Mon Week-Day HH:MM ]')
 
         plt.tight_layout()
@@ -323,10 +325,20 @@ if __name__ == '__main__':
     for locName, df_time in df.groupby(['LOC']):
       df_time['hours'] = df_time.index.hour
 
-      start_hour = pd.to_datetime('17:00:00', format='%H:%M:%S')
-      end_hour = pd.to_datetime('21:00:00', format='%H:%M:%S')
+      alfa_time = args.range.split('|')[0]
+      omega_time = args.range.split('|')[1]
 
-      mask = (df_time.hours >= start_hour.hour) & (df_time.hours < end_hour.hour)
+      delta_time = pd.to_datetime(omega_time, format='%H:%M:%S') - pd.to_datetime(alfa_time, format='%H:%M:%S')
+      delta_time = delta_time.total_seconds()
+      if delta_time >= 17999:
+        freq = '3600s'
+      else:
+        freq = f'{args.dt}s'
+
+      start_hour = pd.to_datetime(alfa_time, format='%H:%M:%S')
+      end_hour = pd.to_datetime(omega_time, format='%H:%M:%S')
+
+      mask = (df_time.hours >= start_hour.hour) & (df_time.hours <= end_hour.hour)
       df_time = df_time.loc[mask]
 
       df_time = df_time.groupby(['DATETIME',  pd.Grouper(freq = freq)]).sum()
@@ -341,8 +353,8 @@ if __name__ == '__main__':
           for time, df_hour in df_week.groupby([df_week.index.time]):
             mean_list.append(df_hour.COUNTER.mean())
 
-          s_fake_date = pd.to_datetime('2021-01-01 17:00:00')
-          e_fake_date = pd.to_datetime('2021-01-01 20:59:59')
+          s_fake_date = pd.to_datetime('2021-01-01' + ' ' + alfa_time)
+          e_fake_date = pd.to_datetime('2021-01-01' + ' ' + omega_time)
           fullt = pd.date_range(start = s_fake_date,end= e_fake_date, freq = freq)
           mean_df = pd.DataFrame(index=fullt)
           mean_df['COUNTER'] = mean_list  
@@ -358,8 +370,8 @@ if __name__ == '__main__':
           for data, df_data in df_week.groupby([df_week.index.date]):
 
             if len(df_data) != len(mean_df):
-              s_fill_date = pd.to_datetime(str(df_data.index.date[0]) + ' ' +  '17:00:00')
-              e_fill_date = pd.to_datetime(str(df_data.index.date[0]) + ' ' +  '20:59:59')
+              s_fill_date = pd.to_datetime(str(df_data.index.date[0]) + ' ' +  alfa_time)
+              e_fill_date = pd.to_datetime(str(df_data.index.date[0]) + ' ' +  omega_time)
               fillt = pd.date_range(start = s_fill_date,end= e_fill_date, freq = freq)
               df_data = (df_data.reindex(fillt, fill_value=0).reset_index().reindex(columns=['COUNTER'])).set_index(fillt)
 
@@ -386,22 +398,38 @@ if __name__ == '__main__':
             medie_list = []
             diff_list = []
             if wday == args.weekDay:
-              data_list = df_data['SMOOTH'].tolist()
-              medie_list = mean_df['SMOOTH'].tolist() 
+              if delta_time >= 17999:
+                data_list = df_data['COUNTER'].tolist()
+                medie_list = mean_df['COUNTER'].tolist()
+              else:
+                data_list = df_data['SMOOTH'].tolist()
+                medie_list = mean_df['SMOOTH'].tolist() 
+
+              media_mean = statistics.mean(medie_list)
 
               zip_obj = zip(data_list, medie_list)
               for data_listi, medie_listi in zip_obj:
-                diff_list.append(((data_listi - medie_listi)/medie_listi)*100)
+                num = data_listi - medie_listi
+                perc = (num / media_mean) * 100
+                diff_list.append(perc)
 
               ax = axs2[0]
-              ax.plot(ts, df_data.SMOOTH, '-o', label=f'{wday}, {df_data.index.date[0]}', markersize=4)
-              ax.plot(ts, mean_df.SMOOTH, '-o', label=f'Week Mean', markersize=4)
+              if delta_time >= 17999:
+                ax.plot(ts, df_data.COUNTER, '-o', label=f'{wday}, {df_data.index.date[0]}', markersize=4)
+                ax.plot(ts, mean_df.COUNTER, '-o', label=f'Week Mean', markersize=4)
+                ax.set_ylim(0, 1500) # Gouped by 1h
+              else:
+                ax.plot(ts, df_data.SMOOTH, '-o', label=f'{wday}, {df_data.index.date[0]}', markersize=4)
+                ax.plot(ts, mean_df.SMOOTH, '-o', label=f'Week Mean', markersize=4)
+                ax.set_ylim(30, 140)  # Grouped by 5min
+
               ax.legend()
               ax.grid(which='major', linestyle='-')
               ax.grid(which='minor', linestyle='--')
               ax.set_xticks(ts_ticks)
               ax.set_xticklabels(ts_lbl, rotation=45, ha='right')
-              ax.set_ylabel('Number of People [sampled 5 min]')
+
+              ax.set_ylabel(f'Number of People [sampled {freq}]')
 
               ax = axs2[1]
               ax.plot(ts, diff_list, '-o', label=f'Plot Difference ', markersize=4)
@@ -411,21 +439,31 @@ if __name__ == '__main__':
               ax.grid(which='minor', linestyle='--')
               ax.set_xticks(ts_ticks)
               ax.set_xticklabels(ts_lbl, rotation=45, ha='right')
-              ax.set_ylabel('Differences [%]')
+              if delta_time >= 17999:
+                ax.set_ylim(-100, 170)  # Grouped by 1h
+              else:  
+                ax.set_ylim(-40, 100)  # Grouped by 5min
+
+              ax.set_ylabel('Differences [mean x 100]')
 
               ax.set_xlabel('Time [HH:MM]')
 
               plt.tight_layout()
               fig2.subplots_adjust(top=0.9)
-              ptitle = f'Comparison between {wday}day and weekly mean in {location_map[locName]}\nWeek: {week_num}'
+              ptitle = f'Comparison between {wday}sday and weekly mean in {location_map[locName]}\nWeek: {week_num}'
               plt.suptitle(ptitle, y=0.98)
               if args.show:
                 plt.show()
               else:
                 thisday = df_data.index.date[0].strftime('%Y%m%d')
+                alfa_time = alfa_time.replace(':','')
+                omega_time = omega_time.replace(':','')
                 compare_weekly = f'{output}/comparison/diff_week_{week_num}'
                 if not os.path.exists(compare_weekly): os.mkdir(compare_weekly)
-                plt.savefig(f'{compare_weekly}/diff_{locName}__week_num_{week_num}_{wday}_{thisday}_{freq}.png')
+                time_gap = f'{compare_weekly}/{alfa_time}_{omega_time}'
+                if not os.path.exists(time_gap): os.mkdir(time_gap)
+
+                plt.savefig(f'{time_gap}/diff_{locName}__week_num_{week_num}_{wday}_{thisday}_{freq}.png')
 
               plt.clf()
               plt.close()
@@ -441,6 +479,7 @@ if __name__ == '__main__':
             axs.set_xticklabels(ts_lbl, rotation=45, ha='right')
             axs.set_ylabel('Number of People [sampled 5 min]')
             axs.set_xlabel('Time [HH:MM]')
+            axs.set_ylim(0, 170)
   
             curved = dict()
             for legline, origline in zip(leg.get_lines(), curves):
@@ -530,7 +569,7 @@ if __name__ == '__main__':
       df['LOC'] = df['BARRIER_UID'].map(camconv)
       df = df.drop(columns='BARRIER_UID')
 
-      data_analysis(df, base_save)
+      # data_analysis(df, base_save)
 
       spec_analysis(df, base_save)
 
