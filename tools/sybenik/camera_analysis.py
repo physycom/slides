@@ -151,8 +151,8 @@ def data_analysis(df, output):
 
     ax.grid(which='major', linestyle='-')
     ax.grid(which='minor', linestyle='--')
-    ax.set_ylabel('Percentage of Increment from Day 1 [%]', color='b')
-    ax.set_title(f'Increment')
+    ax.set_ylabel('Value [%]', color='b')
+    ax.set_title(f'Percentage from Day One: {tsd_lbl[0]}')
 
     ax.set_xticks(tsd_ticks)
     ax.set_xticklabels(tsd_lbl, rotation=45, ha='right')
