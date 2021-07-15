@@ -49,7 +49,7 @@ class db_kml:
   def parse_kml(self, kmlfile, citytag):
     logger.info('Parse {} info from local kml {}'.format(citytag, kmlfile))
 
-    with open(kmlfile) as f:
+    with open(kmlfile, encoding="utf8") as f:
       folder = xmlparser.parse(f).getroot().Document.Folder
 
     ### parse bari kml
