@@ -13,9 +13,8 @@ import json
 from datetime import datetime
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException, Response
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, validator
 import logging
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import coloredlogs
 import glob
 
@@ -429,3 +428,8 @@ async def grid_get(request: Request, citytag: str = ''):
     raise HTTPException(status_code=501, detail='grid geojson creation for \'{}\' failed'.format(citytag))
 
   return ret
+
+
+if __name__ == "__main__":
+  import uvicorn
+  uvicorn.run(app)
