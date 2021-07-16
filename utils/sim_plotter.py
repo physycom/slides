@@ -19,6 +19,7 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
     midn_start = start.replace(hour=0, minute=0, second=0)
 
     sources = {}
+    cnt_io = 0
     if 'sources' in config:
       src = config['sources']
       for k,v in src.items():
@@ -26,8 +27,16 @@ def sim_plot(popin=None, confin=None, outpng='', city='N/A'):
         dt = (24 * 60 * 60) / len(rates)
         times = [ midn_start + timedelta(seconds=i*dt) for i in range(len(rates)) ]
         sources[k] = [times, rates]
-        print(sum(rates))
         print(k, len(rates))
+        if (k!="LOCALS" and k.endswith("_w")): cnt_io += max(rates)
+        print(max(rates), sum(rates))
+    print(cnt_io)
+
+    dt = 300
+    n = 24 * 60 * 60 // dt
+    ts = [ midn_start + timedelta(seconds=i*dt) for i in range(n) ]
+    df = pd.DataFrame(ts)
+    df.index = pd.to_datetime(df[0], unit='s')
 
     dt = 300
     n = 24 * 60 * 60 // dt

@@ -17,12 +17,12 @@ from collections import defaultdict
 #### log function ########
 ##########################
 import logging
-logger = logging.getLogger('mod_fe')
+logger = logging.getLogger('mod_ba')
 
 #############################
-#### model ferrara class ####
+#### model bari class #######
 #############################
-class model_ferrara():
+class model_bari():
 
   def __init__(self, config):
     self.got_data = False
@@ -36,14 +36,14 @@ class model_ferrara():
     if 'station_mapping' in config:
       self.station_map = config['station_mapping']
 
-    with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'extra', 'ferrara_sniffer.json')) as sin:
+    with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'extra', 'bari_cam_loc.json')) as sin:
       self.st_info = json.load(sin)
 
   def full_table(self, start, stop, tag, resampling=None):
     if len(self.station_map) == 0:
       raise Exception(f'No station to generate')
 
-    logger.info(f'Generating model FE for {tag}')
+    logger.info(f'Generating model BA for {tag}')
 
     if len(self.data) == 0:
       self.count_raw(start, stop)
@@ -84,40 +84,43 @@ class model_ferrara():
     Perform device id counting with fine temporal scale
     """
     #logger.info(f'Counting raw data')
-    df = self.get_data_mongo(start, stop)
+
+    df = self.get_data_mysql(start, stop)
 
     fine_freq = f'{self.rates_dt}s'
 
     df['wday'] = [ t.strftime('%a') for t in df.index ]
     df['date'] = df.index.date
     df['time'] = df.index.time
-    df['station_id'] = df.station_name.str.extract(r'.*-(\d)')
     #print(df)
 
     tnow = datetime.now()
     cnts = pd.DataFrame(index=pd.date_range(start, stop, freq=fine_freq))
-    for station, dfg in df.groupby(['station_id']):
-      s = pd.Series(dfg['mac_address'], index=dfg.index)
-      dfu = pd.DataFrame(s.groupby(pd.Grouper(freq=fine_freq)).value_counts())
+    for station, dfg in df.groupby(['barrier_uid']):
+      print(station)
+      s = pd.Series(dfg['counter'], index=dfg.index)
+      dfu = pd.DataFrame(s.groupby(pd.Grouper(freq=fine_freq)).sum())
       dfu.columns = [station]
       dfu = dfu.reset_index()
       dfu = dfu.set_index('date_time')
-      dfu = dfu.groupby('date_time')[['mac_address']].count()
-      dfu.columns = [station]
-      #print(dfu)
       cnts[station] = np.nan
       mrg = cnts[[station]]
       mrg = pd.merge(mrg, dfu, left_index=True, right_index=True, how='left', suffixes=('_cnts', ''))
       #print('merge\n', mrg)
-      cnts[station] = mrg[station]
+      cnts[station] = mrg[str(station)]
+
 
     # fix null/empty/nan/missing values
-    cnts[ cnts == 0 ] = np.nan
+    #cnts[ cnts == 0 ] = np.nan # scelta 1)
     cnts = cnts.reset_index().interpolate(limit=10000, limit_direction='both').set_index('index')
     cnts.index.name = 'time'
     tcounting = datetime.now() - tnow
     logger.info(f'Counting done in {tcounting}')
     #print(cnts)
+
+    #ricomincia da qui
+    exit(8)
+
     # convert to source/attractions naming convention and apply station-to-source mapping
     smap = self.station_map
     data = pd.DataFrame(index=cnts.index)
@@ -127,155 +130,74 @@ class model_ferrara():
           data[name] = cnts[sid] / len(names)
         except Exception as e:
           logger.error(f'Error in reconstructing source {name} from sniffer {sid} : {e}')
+    #print(data)
 
     self.data = data.astype(int)
 
-  def get_data_mongo(self, start, stop):
+  def get_data_mysql(self, start, stop):
     try:
-      config = self.config['mongo']
       station_list = self.station_map.keys()
       start_date = start.strftime(self.date_format)
       stop_date = stop.strftime(self.date_format)
 
-      use_mongo = False
-      if use_mongo:
-        # mongo
-        client = pymongo.MongoClient(
-          host          = config['host'],
-          port          = config['port'],
-          username      = config['user'],
-          password      = config['pwd'],
-          authSource    = config['db'],
-          authMechanism = config['aut']
-        )
-        #print(f'Authentication ok')
+      # mysql
+      config = self.config['mysql']
+      db = mysql.connector.connect(
+        host     = config['host'],
+        port     = config['port'],
+        user     = config['user'],
+        passwd   = config['pwd'],
+        database = config['db']
+      )
+      cursor = db.cursor()
+      # fetch mysql station id
+      station_list = list(self.station_map.keys())
+      station_filter = ' OR '.join([ f"bm.CAM_NAME = '{sid}'" for sid in station_list ])
 
-        tnow = datetime.now()
-        db_filter = {
-          'date_time' : {
-            '$gte' : start_date,
-            '$lt'  : stop_date
-          },
-          'kind' : 'wifi',
-          'station_name' : { '$in' : [ self.st_info[sid]['station_name'] for sid in station_list ] }
-        }
-        db_fields = {
-          'mac_address'  : 1,
-          'date_time'    : 1,
-          'station_name' : 1,
-          '_id'          : 0
-        }
-        #print(json.dumps(db_filter, indent=2))
-        cursor = client['symfony'].FerraraPma.find(db_filter, db_fields)
-        df = pd.DataFrame(list(cursor))
-        if len(df) == 0:
-          raise Exception(f'[mod_fe] Empty mongo query result')
+      query = f"""
+        SELECT
+          bm.UID,
+          bm.CAM_NAME,
+          bm.BARRIER_NAME
+        FROM
+          barriers_meta bm
+        WHERE
+          {station_filter}
+        AND
+          bm.BARRIER_NAME != 'S1'
+      """
+      #print(query)
+      cursor.execute(query)
+      result = cursor.fetchall()
+      sidconv = { v[0] : v[2] for v in result }
+      #print('sid', sidconv)
+      query = f"""
+        SELECT
+          bc.DATETIME as date_time,
+          bc.TIMESTAMP as timestamp,
+          bc.COUNTER as counter,
+          bc.TOTAL_COUNTER as total_counter,
+          bc.BARRIER_UID as barrier_uid
+        FROM
+          barriers_cnt bc
+        WHERE
+          (bc.DATETIME >= '{start_date}' AND bc.DATETIME < '{stop_date}')
+          AND
+          (bc.BARRIER_UID IN {tuple(sidconv.keys())} )
+      """
+      cursor.execute(query)
+      result = cursor.fetchall()
+      logger.info(f'Received {len(result)} mysql data')
+      if len(result) == 0:
+        raise Exception(f'empty mysql result')
 
-        df.index = pd.to_datetime(df.date_time)
-        tquery = datetime.now() - tnow
-        logger.debug(f'Received {len(df)} mongo data in {tquery}')
-        #print(df)
-      else:
-        # mysql
-        config = self.config['mysql']
-        db = mysql.connector.connect(
-          host     = config['host'],
-          port     = config['port'],
-          user     = config['user'],
-          passwd   = config['pwd'],
-          database = config['db']
-        )
-        cursor = db.cursor()
-
-        # fetch mysql station id
-        station_filter = ' OR '.join([ f"s.station_id = '{self.st_info[sid]['station_name']}'" for sid in station_list ])
-        query = f"""
-          SELECT
-            s.id,
-            s.station_id,
-            s.address
-          FROM
-            Stations s
-          WHERE
-            {station_filter}
-        """
-        #print(query)
-        cursor.execute(query)
-        result = cursor.fetchall()
-        #print(result)
-        sidconv = { v[0] : v[1] for v in result }
-        #print('sid', sidconv)
-
-        query = f"""
-          SELECT
-            ds.date_time as date_time,
-            ds.id_device as mac_address,
-            ds.id_station as station_mysql_id
-          FROM
-            DevicesStations ds
-          WHERE
-            (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
-            AND
-            (ds.id_station IN {tuple(station_list)} )
-        """
-        #print(query)
-
-        cursor.execute(query)
-        result = cursor.fetchall()
-        logger.info(f'Received {len(result)} mysql data')
-
-        if len(result) == 0:
-          logger.warning(f'mysql empty result trying retrocompatibility mode')
-
-          # fetch mysql station id
-          station_filter = ' OR '.join([ f"s.station_name LIKE '%({sid})'" for sid in station_list ])
-          #print(station_filter)
-          query = f"""
-            SELECT
-              s.id,
-              s.station_name,
-              s.address
-            FROM
-              Stations s
-            WHERE
-              {station_filter}
-          """
-          #print(query)
-          cursor.execute(query)
-          result = cursor.fetchall()
-          #print(result)
-          sidconv = { v[0] : 'Ferrara-'+ re.findall(r'.*\((\d)\)', v[1])[0] for v in result }
-          #print('sid', sidconv)
-
-          query = f"""
-            SELECT
-              ds.date_time as date_time,
-              ds.id_device as mac_address,
-              ds.id_station as station_mysql_id
-            FROM
-              DevicesStations ds
-            WHERE
-              (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
-              AND
-              (ds.id_station IN ({', '.join([ str(c) for c in sidconv.keys()])}) )
-          """
-          #print(query)
-
-          cursor.execute(query)
-          result = cursor.fetchall()
-          #print(result)
-
-          if len(result) == 0:
-            raise Exception(f'empty mysql result')
-          logger.info(f'Received (retrocompatibility) {len(result)} mysql data')
-
-        df1 = pd.DataFrame(result)
-        df1.columns =  cursor.column_names
-        df1 = df1.set_index('date_time')
-        df1.index = pd.to_datetime(df1.index)
-        df1['station_name'] = [ sidconv[n] for n in df1.station_mysql_id.values ]
-        df1 = df1.drop(columns=['station_mysql_id'])
-        df = df1
+      df1 = pd.DataFrame(result)
+      df1.columns =  cursor.column_names
+      df1 = df1.set_index('date_time')
+      df1 = df1.sort_index()
+      df1.index = pd.to_datetime(df1.index)
+      df1['barrier_name'] = [ sidconv[n] for n in df1.barrier_uid ]
+      df = df1
 
       return df
     except Exception as e:
@@ -355,15 +277,14 @@ if __name__ == '__main__':
   with open(args.cfg) as f:
     config = json.load(f)
 
-  mfe = model_ferrara(config)
+  mba = model_bari(config)
 
   if 0:
-    mfe.map_station_to_source()
+    mba.map_station_to_source()
 
   if 1:
-    start = datetime.strptime(config['start_date'], mfe.date_format)
-    stop = datetime.strptime(config['stop_date'], mfe.date_format)
-    df = mfe.full_table(start, stop, 'Stazione')
-    df = mfe.full_table(start, stop, 'parcheggio_1')
+    start = datetime.strptime(config['start_date'], mba.date_format)
+    stop = datetime.strptime(config['stop_date'], mba.date_format)
+    df = mba.full_table(start, stop, 'Stazione')
     print(df)
 

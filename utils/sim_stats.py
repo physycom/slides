@@ -22,8 +22,6 @@ def sim_stats(statsin, outbase='', city='N/A'):
   #dfid = dfid.tz_localize('UTC').tz_convert('Europe/Rome').tz_localize(None)
   start = dfid.index[0]
   stop = dfid.index[-1]
-  #print(dfid)
-
   # compute sub-df for specific analysis
   dfg = dfid[['tag']].resample('300s').count().rename(columns={'tag':'pawn_created'})
   #print(dfg)

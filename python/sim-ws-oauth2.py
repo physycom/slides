@@ -1,5 +1,5 @@
 # launch with
-# uvicorn simulation-ws:app --reload --port 9999
+# uvicorn sim-ws-oauth2:app --reload --port 9999
 
 # and test with
 # GET test
@@ -74,7 +74,7 @@ tags_metadata = [
 ]
 
 app = FastAPI(
-  title="SLIDES pedestrian fluxes simulator",
+  title="SLIDES pedestrian on simwsouaut2 fluxes simulator",
   description="A web api providing pedestrians mobility prediction algorithm",
   version=ver,
   openapi_tags=tags_metadata
@@ -133,7 +133,8 @@ async def startup_event():
     console_handler.setFormatter(console_formatter)
 
     time_formatter = logging.Formatter('%(asctime)s [%(levelname)s] (%(name)s:%(funcName)s) %(message)s', "%y-%m-%d %H:%M:%S")
-    time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
+    # time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
+    time_handler = logging.FileHandler(f'{log_folder}/slides_ws.log')
     time_handler.setFormatter(time_formatter)
 
     # clear uvicorn logger
@@ -155,7 +156,8 @@ async def startup_event():
     if not os.path.exists(log_folder): os.makedirs(log_folder)
 
     time_formatter = logging.Formatter('%(asctime)s [%(process)d] [%(levelname)s] (%(name)s) %(message)s', "%y%m%d %H:%M:%S")
-    time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
+    # time_handler = TimedRotatingFileHandler(f'{log_folder}/slides_ws.log', when='D', backupCount=7) # m H D : minutes hours days
+    time_handler = logging.FileHandler(f'{log_folder}/slides_ws.log')
     time_handler.setFormatter(time_formatter)
 
     logging.basicConfig(
@@ -213,13 +215,13 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
   out_type = body.out_type
   logger.info(f'Parameters {start_date} - {stop_date} sampling {sampling_dt} city {citytag} out_type {out_type}')
 
-  sim_id = os.getpid()
+  sim_id = int(datetime.now().strftime('%y%m%d%H%M%S%f'))
   logger.info(f'Simulation id {sim_id} ')
 
   # init conf
   try:
     cfg_file = os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'conf', 'conf.json')
-    with open(cfg_file) as cin: cfg = json.load(cin)
+    with open(cfg_file, encoding="utf8") as cin: cfg = json.load(cin)
     cw = conf(cfg)
   except Exception as e:
     logger.error(f'conf init failed : {e}')
@@ -289,12 +291,11 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
       pof = s.grid_outfile()
       logger.info(f'Grid counters output file : {pof}')
 
-      dfp = pd.read_csv(pof, sep=" |,|=", usecols=[2,4,5], engine='python', dtype=int)
+      dfp = pd.read_csv(pof, sep=" |,|=", usecols=[2,4,5], engine='python')
       dfp.columns = ['id', 'cnt', 'timestamp']
       dfp.timestamp = (dfp.timestamp * 1e-9).astype('int')
       #dfp['datetime'] = pd.to_datetime(dfp.timestamp, unit='s', utc=True).dt.tz_convert('Europe/Rome')
       dfp = dfp[ dfp.cnt != 0 ]
-      #print(dfp)
       grid_cnt = {
           int(ts) : { str(gid) : int(val) for gid, val in dft[['id', 'cnt']].astype(int).values }
         for ts, dft in dfp.groupby('timestamp')

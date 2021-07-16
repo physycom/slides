@@ -136,8 +136,8 @@ class conf:
 
     # log totals for debug
     for c, v in srcdata.sum().items():
-      logger.debug(f'Source {c} total pawn : {v:.2f}')
-    logger.debug(f'Simulation total pawn ; {srcdata.sum().sum():.2f}')
+      logger.info(f'Source {c} total pawn : {v:.2f}')
+    logger.info(f'Simulation total pawn ; {srcdata.sum().sum():.2f}')
 
     # cast dataframe to timetable json format
     for tag in srcdata.columns:
@@ -224,7 +224,7 @@ if __name__ == '__main__':
   )
   logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
-  with open(args.cfg) as cfgfile:
+  with open(args.cfg, encoding="utf8") as cfgfile:
     config = json.loads(cfgfile.read())
 
   try:
