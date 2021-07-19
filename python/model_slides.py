@@ -47,7 +47,7 @@ class model_slides:
     self.got_data = False
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
-    self.rates_dt = 5 * 60
+    self.rates_dt = 15 * 60
     self.config = config
 
     self.wdir = config['work_dir']
@@ -363,7 +363,7 @@ class model_slides:
     df['tot-smooth'] = (max_pop - min_pop) * norm + min_pop
     #print(df['tot-smooth'].min(), df['tot-smooth'].max())
 
-    df = df[['tot-smooth']].rename({'tot-smooth':'data'})
+    df = df[['tot-smooth']].rename(columns={'tot-smooth':'data'})
     df = df[ (df.index >= start) & (df.index < stop) ]
     # print(df)
     return df

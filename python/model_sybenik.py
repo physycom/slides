@@ -18,7 +18,6 @@ class model_sybenik():
 
   def __init__(self, config, logger = None):
     self.config = config
-    self.rates_dt = 10 * 60
 
   def full_table(self, start, stop, tag, resampling=None):
     camera_map ={
@@ -123,7 +122,6 @@ class model_sybenik():
         # conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( data.tag ) * np.fft.fft(kern) )))
         # data.tag = conv
 
-        print(data)
         return data
 
     else:

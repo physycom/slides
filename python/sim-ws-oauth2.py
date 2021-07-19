@@ -12,6 +12,7 @@ import os
 import json
 from datetime import datetime
 import pandas as pd
+import uvicorn
 from fastapi import FastAPI, Request, HTTPException, Response
 from pydantic import BaseModel, validator
 import logging
@@ -432,4 +433,4 @@ async def grid_get(request: Request, citytag: str = ''):
 
 if __name__ == "__main__":
   import uvicorn
-  uvicorn.run(app)
+  uvicorn.run(app, port=10002)
