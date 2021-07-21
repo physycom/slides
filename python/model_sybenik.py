@@ -20,6 +20,9 @@ class model_sybenik():
     self.config = config
 
   def full_table(self, start, stop, tag, resampling=None):
+    import logging
+    logger = logging.getLogger('m_sybenik')
+
     camera_map ={
       "Porto" : "Port_Of_Šibenik"
     }
@@ -27,6 +30,8 @@ class model_sybenik():
     if tag in camera_map.values():
 
       config = self.config['mysql']
+
+      logger.info(f'config is {config}')
 
       db = mysql.connector.connect(
         host     = config['host'],
@@ -65,6 +70,7 @@ class model_sybenik():
           AND
           (BARRIER_UID in {tuple(sidconv.keys())} )
       """
+      logger.info(f'query:\n {query}')
       # print('\nquery\n',query)
       tquery = datetime.now()
       cursor.execute(query)

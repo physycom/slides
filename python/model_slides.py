@@ -102,7 +102,7 @@ class model_slides:
   def full_table(self, start, stop, city, tag):
     #print((city, tag), self.models.keys())
     #print(self.models)
-    logger.info(f'Creating data for {city} {tag}')
+    logger.info(f'Creating data for {city} {tag}, from {start} to {stop}')
     if not (city, tag) in self.models:
       self.create_model0(city, tag)
 
@@ -131,6 +131,7 @@ class model_slides:
     elif city == 'sybenik':
       m01 = 'SY'
       try:
+        logger.info(f'SY Full Table parameters -> start: {start}, tag: {tag}, start: {start}, stop: {stop}, resampling: {self.rates_dt}')
         data = self.mod_sy.full_table(start, stop, tag, resampling=self.rates_dt)
       except Exception as e:
         logger.warning(f'Model {m01} {tag} : {e}')
