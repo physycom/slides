@@ -27,6 +27,11 @@ class model_sybenik():
       "Porto" : "Port_Of_Šibenik"
     }
 
+    logger.info(f'camera_map : {camera_map}')
+    logger.info(f'tag : {tag}')
+    logger.info(f'camera_map.values : {camera_map}')
+
+
     if tag in camera_map.values():
 
       config = self.config['mysql']
