@@ -33,7 +33,9 @@ class model_sybenik():
 
 
     if tag in camera_map.values():
-
+      
+      logger.info(f'self.config : {self.config}')
+      
       config = self.config['mysql']
 
       logger.info(f'config is {config}')
