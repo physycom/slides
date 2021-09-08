@@ -18,7 +18,7 @@ if __name__ == '__main__':
   base = args.cfg
   base = base[:base.rfind('.')]
 
-  with open(args.cfg) as f:
+  with open(args.cfg, encoding='utf-8') as f:
     config = json.load(f)
 
   start_date = config['start_date']
@@ -26,6 +26,8 @@ if __name__ == '__main__':
 
   start_tag = start_date.replace('-', '').replace(':', '').replace(' ', '-')
   stop_tag = stop_date.replace('-', '').replace(':', '').replace(' ', '-')
+
+  config = config['model_data']['params']['ferrara']
 
   print(f'Using {args.db} for {start_date} - {stop_date}')
 
@@ -88,6 +90,7 @@ if __name__ == '__main__':
 
     elif args.db == 'mysql':
       config = config['mysql']
+
       db = mysql.connector.connect(
         host     = config['host'],
         port     = config['port'],
@@ -154,6 +157,7 @@ if __name__ == '__main__':
       df['station_name'] = [ sidconv[n] for n in df.station_mysql_id.values ]
       df = df.drop(columns=['station_mysql_id'])
       print(df)
+      # print(df.station_name.unique())
 
     out = f'{base}_{start_tag}_{stop_tag}_{args.dev}.csv'
     df.to_csv(out, sep=';', header=True, index=False)
