@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+from pandas.tseries.offsets import Hour
 import pymongo
 import json
 import argparse
@@ -7,13 +8,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import json
 import mysql.connector
-from datetime import datetime
+from datetime import datetime, timedelta
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('-c', '--cfg', help='config file', required=True)
   parser.add_argument('-d', '--dev', help='filter wrt device type', choices=['both', 'wifi', 'bt'], default='both')
   parser.add_argument('-db', '--db', choices=['mongo', 'mysql'], default='mysql')
+  parser.add_argument('-tc', '--tc', help='time [H] for each chunk', default=2)
+
   args = parser.parse_args()
   base = args.cfg
   base = base[:base.rfind('.')]
@@ -123,44 +126,53 @@ if __name__ == '__main__':
         WHERE
           {station_filter}
       """
-      print(query)
+      # print(query)
       cursor.execute(query)
       result = cursor.fetchall()
       #print(result)
       sidconv = { v[0] : v[1] for v in result }
       #print('sid', sidconv)
 
-      query = f"""
-        SELECT
-          ds.date_time as date_time,
-          ds.id_device as mac_address,
-          ds.id_station as station_mysql_id,
-          'wifi' as kind
-        FROM
-          DevicesStations ds
-        WHERE
-          (ds.date_time >= '{start_date}' AND ds.date_time < '{stop_date}')
-          AND
-          (ds.id_station IN {tuple(sidconv.keys())} )
-      """
-      #print(query)
-      #exit(1)
+      time_chunk = int(args.tc)
+      start = pd.to_datetime(start_date)
+      stop = pd.to_datetime(stop_date)
+      tnow = start
+      df_list = []
+      df_all = pd.DataFrame(columns=['date_time', 'mac_address', 'kind', 'station_name'])
+      while tnow < stop:
+        try:
+          trange = tnow + timedelta(hours=time_chunk)
+          query = f"""
+            SELECT
+              ds.date_time as date_time,
+              ds.id_device as mac_address,
+              ds.id_station as station_mysql_id,
+              'wifi' as kind
+            FROM
+              DevicesStations ds
+            WHERE
+              (ds.date_time >= '{tnow}' AND ds.date_time < '{trange}')
+              AND
+              (ds.id_station IN {tuple(sidconv.keys())} )
+          """
+          # print(query)
+          tquery = datetime.now()
+          cursor.execute(query)
+          result = cursor.fetchall()
+          tquery = datetime.now() - tquery
+          print(f'Received {len(result)} mysql data in {tquery} for sub-query from {tnow} to {trange}')
+          df = pd.DataFrame(result)
+          df.columns =  cursor.column_names
+          df['station_name'] = [ sidconv[n] for n in df.station_mysql_id.values ]
+          df = df.drop(columns=['station_mysql_id'])
+          df_list.append(df)
+        except Exception as e:
+          print('Connection error : {}'.format(e))
 
-      tquery = datetime.now()
-      cursor.execute(query)
-      result = cursor.fetchall()
-      tquery = datetime.now() - tquery
-      print(f'Received {len(result)} mysql data in {tquery}')
-
-      df = pd.DataFrame(result)
-      df.columns =  cursor.column_names
-      df['station_name'] = [ sidconv[n] for n in df.station_mysql_id.values ]
-      df = df.drop(columns=['station_mysql_id'])
-      print(df)
-      # print(df.station_name.unique())
-
-    out = f'{base}_{start_tag}_{stop_tag}_{args.dev}.csv'
-    df.to_csv(out, sep=';', header=True, index=False)
+        tnow = trange      
+      df_all = pd.concat(df_list)
+      out = f'{base}_{start_tag}_{stop_tag}_{args.dev}.csv'
+      df_all.to_csv(out, sep=';', header=True, index=False)    
 
   except Exception as e:
     print('Connection error : {}'.format(e))
