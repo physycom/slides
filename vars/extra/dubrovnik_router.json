@@ -46,10 +46,10 @@
   },
   {
     "id": 117,
-    "name": "",
+    "name": "DUMUS2",
     "serial": "Q2KD-Z2JC-Y7WM",
-    "lat": 42.6404,
-    "lon": 18.1108,
+    "lat": 42.64041409009252,
+    "lon": 18.110841733692883,
     "networkId": "N_659777345409800961",
     "status": "online"
   },
@@ -57,8 +57,8 @@
     "id": 118,
     "name": "Knjigovodstvo",
     "serial": "Q2KD-GFGY-KQMK",
-    "lat": 37.4181,
-    "lon": -122.099,
+    "lat": 42.641534792364766,
+    "lon": 18.107513112321403,
     "networkId": "N_659777345409800961",
     "status": "online"
   },
