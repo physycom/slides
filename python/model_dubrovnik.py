@@ -40,7 +40,7 @@ class model_dubrovnik():
     self.station_map = {}
     self.data = pd.DataFrame()
 
-    with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'extra', 'dubrovnik_sniffer.json')) as sin:
+    with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'extra', 'dubrovnik_router.json')) as sin:
       self.st_info = json.load(sin)
     st_ser2id = { st['serial'] : st['id'] for st in self.st_info }
 
