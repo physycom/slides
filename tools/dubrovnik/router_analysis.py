@@ -79,7 +79,6 @@ def localanomaly(data, freq):
 
   fine_freq_s = int(freq[:-1])
 
-  df = df.drop(columns = 'time.1')
   df.index = df.index.rename('date_time')
   data_i = start
   data_f = stop
@@ -331,7 +330,6 @@ def delta_router_group(data, freq):
   if not os.path.exists(output): os.mkdir(output)
 
   df = pd.read_csv(data, sep =';', parse_dates=True, index_col=[0])
-  df = df.drop(columns='time.1')
   tok = data[:data.find('.')].split('_')
   start = tok[-4] + "-" + tok[-3]
   stop = tok[-2] + "-" + tok[-1]
