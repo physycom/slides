@@ -22,7 +22,7 @@ class conf:
   def __init__(self, config):
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.creation_dt = 30
-    self.rates_dt = 5 * 60
+    self.rates_dt = 15 * 60
 
     self.HERE = tz.tzlocal()
     self.UTC = tz.gettz('UTC')
@@ -91,7 +91,7 @@ class conf:
     for tag, src in src_list.items():
       #print(tag, src)
       data = self.ms.full_table(start, stop, citytag, tag)
-      #print('data\n', data)
+      # print('data\n', data)
 
       if len(srcdata) == 0:
         srcdata = data
@@ -160,7 +160,7 @@ class conf:
       sources.update({
         tag + '_IN' : {
           'creation_dt' : self.creation_dt,
-          'creation_rate' : [ v for v in tt.values() ],
+          'creation_rate' : [ float(v) for v in tt.values() ],
           'source_location' : {
             'lat' : src_list[tag]['lat'],
             'lon' : src_list[tag]['lon']

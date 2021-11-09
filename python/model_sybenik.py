@@ -18,16 +18,27 @@ class model_sybenik():
 
   def __init__(self, config, logger = None):
     self.config = config
-    self.rates_dt = 10 * 60
 
   def full_table(self, start, stop, tag, resampling=None):
+    import logging
+    logger = logging.getLogger('m_sybenik')
+
     camera_map ={
       "Porto" : "Port_Of_Šibenik"
     }
 
-    if tag in camera_map.values():
+    logger.info(f'camera_map : {camera_map}')
+    logger.info(f'tag : {tag}')
+    logger.info(f'camera_map.values : {camera_map}')
 
+
+    if tag in camera_map.values():
+      
+      logger.info(f'self.config : {self.config}')
+      
       config = self.config['mysql']
+
+      logger.info(f'config is {config}')
 
       db = mysql.connector.connect(
         host     = config['host'],
@@ -66,6 +77,7 @@ class model_sybenik():
           AND
           (BARRIER_UID in {tuple(sidconv.keys())} )
       """
+      logger.info(f'query:\n {query}')
       # print('\nquery\n',query)
       tquery = datetime.now()
       cursor.execute(query)
@@ -123,7 +135,6 @@ class model_sybenik():
         # conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( data.tag ) * np.fft.fft(kern) )))
         # data.tag = conv
 
-        print(data)
         return data
 
     else:

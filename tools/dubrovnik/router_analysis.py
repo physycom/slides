@@ -1,376 +1,437 @@
 #! /usr/bin/env python3
 
 import os
-import json
 import argparse
 import numpy as np
-from numpy.core.numeric import full
 import pandas as pd
-import mysql.connector
 import matplotlib.pyplot as plt
-from datetime import datetime
-from scipy.stats import linregress
+from collections import defaultdict
+from datetime import datetime, timedelta
 
-if __name__ == '__main__':
-  parser = argparse.ArgumentParser()
-  parser.add_argument('-c', '--cfg', help='config file', required=True)
-  parser.add_argument('-s', '--show', action='store_true')
-  parser.add_argument('-db', '--db', choices=['mongo', 'mysql'], default='mysql')
-  parser.add_argument('-q', '--query', action='store_true')
+router_group = defaultdict(
+  first_group = [122, 123, 126],
+  second_group = [145, 146, 147]
+)
 
-  args = parser.parse_args()
+inv_router_group = {val: k for k, v in router_group.items() for val in v}
 
-  save_path = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_lavoro', 'dubrovnik')
-  if not os.path.exists(save_path): os.mkdir(save_path)  
+wdclass = {
+  'feriali' : [ 'Mon', 'Tue', 'Wed', 'Thu', 'Fri' ],
+  'festivi' : [ 'Sat', 'Sun' ]
+}
 
-  output_raw = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_lavoro', 'dubrovnik', 'data_analysis_raw')
-  if not os.path.exists(output_raw): os.mkdir(output_raw)  
+wdcat = {
+  'Mon' : 'feriali',
+  'Tue' : 'feriali',
+  'Wed' : 'feriali',
+  'Thu' : 'feriali',
+  'Fri' : 'feriali',
+  'Sat' : 'festivi',
+  'Sun' : 'festivi'
+}
 
-  output_agg = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_lavoro', 'dubrovnik', 'data_analysis_agg')
-  if not os.path.exists(output_agg): os.mkdir(output_agg)
+# congestion status
+class cg():
+  LOW  = 1
+  AVE  = 2
+  HIGH = 3
 
-  with open(args.cfg, encoding='utf-8') as f:
-    config = json.load(f)
+kpi_thresh = {
+  cg.LOW  : 0.2,
+  #cg.AVE  : 'gray',
+  cg.AVE  : 0,
+  cg.HIGH : 0.8
+}
 
-  start_date = config['start_date']
-  stop_date  = config['stop_date']
+kpi_colors = {
+  cg.LOW  : 'blue',
+  #cg.AVE  : 'gray',
+  cg.AVE  : 'white',
+  cg.HIGH : 'red'
+}
 
-  start_date_ave = config['startdate']
-  stop_date_ave  = config['enddate']
+data_colors = {
+  cg.LOW  : 'blue',
+  #cg.AVE  : 'gray',
+  cg.AVE  : 'white',
+  cg.HIGH : 'red'
+}
 
-  if pd.to_datetime(config['startdate'], format='%Y-%m-%d %H:%M:%S') < pd.to_datetime(config['start_date'], format='%Y-%m-%d %H:%M:%S'):
-    data_inizio = config['startdate']
-  else:
-    data_inizio = config['start_date']
 
-  if pd.to_datetime(config['enddate'], format='%Y-%m-%d %H:%M:%S') > pd.to_datetime(config['stop_date'], format='%Y-%m-%d %H:%M:%S'):
-    data_fine = config['enddate']
-  else:
-    data_fine = config['stop_date']
+def localanomaly(data, freq):
+  dubro = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_lavoro', 'dubrovnik')
+  if not os.path.exists(dubro): os.mkdir(dubro)
+  base = f'{dubro}/router_local_anomaly'
+  if not os.path.exists(base): os.mkdir(base)
 
-  print(f'Using {args.db} to get data from {data_inizio} to {data_fine}')
-  print(f'Using {args.db} for analysis from {start_date} to {stop_date}')
+  df = pd.read_csv(data, sep =';', parse_dates=True, index_col=[0])
 
-  def data_analysis(df, output):
+  tok = data[:data.find('.')].split('_')
+  start = tok[-4] + "-" + tok[-3]
+  stop = tok[-2] + "-" + tok[-1]
+
+  dt_fmt = '%Y%m%d-%H%M%S'
+  try:
+    start = datetime.strptime(start , dt_fmt)
+    stop = datetime.strptime(stop, dt_fmt)
+  except:
+    print(f'Data format {dt_fmt} doesn\'t match')
+
+  fine_freq_s = int(freq[:-1])
+
+  df.index = df.index.rename('date_time')
+  data_i = start
+  data_f = stop
+  start_time = pd.to_datetime(data_i)
+  end_time = pd.to_datetime(data_f)
+  stats = pd.DataFrame()
+
+  df_list = [k for k in inv_router_group.keys()]
+  # df_list = [122, 124, 128, 130, 127, 140, 152, 151, 157, 148, 132, 135, 133, 131, 136, 137, 138]
+  df = df.loc[df['device'].isin(df_list)]
+
+  df['wday'] = [ t.strftime('%a') for t in df.index ]
+  df['date'] = df.index.date
+  df['time'] = df.index.time
+
+  tnow = datetime.now()
+  stats = pd.DataFrame(index=pd.date_range("00:00", "23:59:59", freq=freq).time)
+
+  for (router, date), dfg in df.groupby(['device', 'date']):
+    try:
+      s = pd.Series(dfg['mac_address'], index=dfg.index)
+      dfu = pd.DataFrame(s.groupby(pd.Grouper(freq=freq)).value_counts())
+      dfu.columns = ['repetitions_counter']
+      dfu = dfu.reset_index()
+      dfu = dfu.set_index('date_time')
+      dfu = dfu.groupby('date_time')[['mac_address']].count()
+
+      if len(dfu) != len(stats):
+        newidx = [ datetime(
+          year=date.year,
+          month=date.month,
+          day=date.day,
+          hour=t.hour,
+          minute=t.minute,
+          second=t.second
+        ) for t in stats.index ]
+        dfu = dfu.reindex(newidx)
+      stats[(router, str(date))] = dfu.mac_address.values
+    except:
+      print(f"Error: router {router}, in {date}")
+      continue
+
+  stats[ stats == 0 ] = np.nan
+  stats = stats.reset_index()
+  stats = stats.interpolate(limit_direction='both')
+  stats = stats.set_index('index')
+  stats.index.name = 'time'
+
+  tnow = datetime.now()
+  ave = stats.copy()
+  ave = ave.stack()
+  ave.index = pd.MultiIndex.from_tuples([ (t, i[0], i[1]) for t, i in ave.index ], names=['time', 'router_id', 'date'])
+  ave = ave.reset_index()
+  cols = ave.columns.values
+  cols[-1] = 'cnt'
+  ave.columns = cols
+  ave.date = pd.to_datetime(ave.date)
+  ave['wday'] = ave.date.dt.strftime('%a')
+
+  # select period to compute the mean counter
+  start_ave = pd.to_datetime('2021-09-01')
+  stop_ave = pd.to_datetime('2021-09-30')
+  masq_ave = (ave.date >= start_ave) & (ave.date <= stop_ave)
+  ave = ave.loc[masq_ave]
+  dfave = ave.groupby(['router_id', 'wday', 'time']).mean()
+
+  smooths = {}
+  for sid, dfg in dfave.groupby(['router_id']):
+    try:
+      dfp = dfg.unstack(level=1)
+      dfp.index = pd.Index([ v[1] for v in dfp.index ], name='time')
+      dfp.columns = [ v[1] for v in dfp.columns ]
+      dfp = dfp[['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']]
+      dfp['feriali'] = dfp[['Mon', 'Tue', 'Wed', 'Thu', 'Fri']].mean(axis=1)
+      dfp['festivi'] = dfp[['Sat', 'Sun']].mean(axis=1)
+      dfp = dfp.astype(int)
+    except Exception as e:
+      print(f'Error with router {sid} : {e}')
+      continue
+    # convolve with normalized centered box
     def box_centered_kernel(tot_len, box_len):
       pad_len = tot_len - box_len
       kern = np.concatenate([
-      np.zeros((pad_len // 2)),
-      np.ones((box_len)) / box_len,
-      np.zeros((pad_len - pad_len // 2))# for odd box_len
+        np.zeros((pad_len // 2)),
+        np.ones((box_len)) / box_len,
+        np.zeros((pad_len - pad_len // 2))# for odd box_len
       ])
       return kern
+    ma_size = 5 # running average idx interval from time in seconds
+    kern = box_centered_kernel(len(dfp), ma_size)
+    smooth = pd.DataFrame([], columns=dfp.columns, index=dfp.index)
+    for c in dfp.columns:
+      conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( dfp[c].values ) * np.fft.fft(kern) )))
+      smooth[c] = conv
+    smooth.index.name='time'
+    smooths[sid] = smooth
+  tave = datetime.now() - tnow
+  print(f'Averaging done in {tave} for {smooths.keys()}')
 
-    ave = df.copy()
+  datetime_fmt = '%Y-%m-%d %H:%M:%S'
+  fullt = {}
+  flustats = {}
+  for s in smooths.keys():
+    cols = [ c for c in stats.columns if c[0] == s ]
+    dft = stats[cols].copy()
+    dft = dft.stack()
+    dft = dft.reset_index()
+    dft.columns = ['time', 'date', 'cnt']
+    dft['datetime'] = [ datetime.strptime(f'{d[1]} {t}', datetime_fmt) for t, d in dft[['time', 'date']].values ]
+    dft = dft.sort_values(by=['datetime'])
 
-    if config['startdate'] is not None and config['enddate'] is not None:
+    stop_time = end_time + timedelta(seconds=84599)
+    stop_time = pd.to_datetime(stop_time)
+    drange = pd.date_range(start_time, stop_time, freq='1d')[:-1] # only for stop = Y M D 00:00:00
 
-      startdate = pd.to_datetime(config['startdate'], format='%Y-%m-%d %H:%M:%S')
-      enddate = pd.to_datetime(config['enddate'], format='%Y-%m-%d %H:%M:%S')
+    drange = [ d.strftime('%a') for d in drange ]
+    ave_class = [ smooths[s][wdcat[d]].values for d in drange ]
+    ave_day = [ smooths[s][d].values for d in drange ]
+    ave_cnt = np.concatenate(ave_class)
+    ave_d_cnt = np.concatenate(ave_day)
+    tidx = pd.date_range(start_time, end_time, freq=freq)#[:-1] # only for stop = Y M D 00:00:
 
-      mask = (ave.index >= startdate) & (ave.index <= enddate)
-      ave = ave.loc[mask]
+    dfave = pd.DataFrame(ave_cnt, index=tidx, columns=['ave_cnt'])
+    dfave['ave_day_cnt'] = ave_d_cnt
 
-      typ = output.split('_')[-1]
-      print(f'Period over which the average is calculated for {typ} data: {startdate} to {enddate}')
+    dfs = dft[['datetime', 'cnt']].set_index('datetime')
+    dft = dfave.merge(dfs, left_index=True, right_index=True)
 
-    for locName, dfave in ave.groupby(['LOC']):
-      # print(locName)
-      # print(dfave)
-      ave = dfave.groupby(['DATETIME',  pd.Grouper(freq='300s')]).sum()
-      ave = ave.reset_index(level=[0])
-      ave = ave.drop(columns='DATETIME')
-      ave = ave.groupby('DATETIME').sum()
+    kern = box_centered_kernel(len(dft), ma_size)
+    dft['cnt_smooth'] = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( dft.cnt ) * np.fft.fft(kern) )))
 
-      s_fill_date = pd.to_datetime(str(df.index.date[0]) + ' ' + '00:00:00')
-      e_fill_date = pd.to_datetime(str(df.index.date[-1]) + ' ' + '23:59:59')        
+    # l2 diff
+    l2diff = (dft.cnt - dft.ave_day_cnt)**2
+    l2d_smooth = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( l2diff ) * np.fft.fft(kern) )))
+    l2d_ave = l2d_smooth.mean()
+    l2d_std = l2d_smooth.std()
+    l2d_thresh = l2d_ave + l2d_std
+    l2d_cut = l2d_smooth.copy()
+    l2d_cut[ l2d_cut < l2d_thresh ] = 0
+    dft['l2_diff'] = l2diff
+    dft['l2_diff_smooth'] = l2d_smooth
+    dft['l2_diff_cut'] = l2d_cut
 
-      fullt = pd.date_range(start=s_fill_date,end= e_fill_date, freq=f'5min')
+    # diff
+    diff = dft.cnt - dft.ave_day_cnt
+    diff_smooth = dft.cnt_smooth - dft.ave_day_cnt
+    l1d_ave = diff_smooth.mean()
+    l1d_std = diff_smooth.std()
 
-      ave = (ave.reindex(fullt, fill_value=0).reset_index().reindex(columns=['COUNTER'])).set_index(fullt)
-      # ave = (ave.reindex(fullt).reset_index().reindex(columns=['COUNTER'])).set_index(fullt)
-      ave = ave.interpolate(limit_direction='both')
+    l1d_thresh_up = diff_smooth.quantile(kpi_thresh[cg.HIGH])
+    l1d_thresh_down = diff_smooth.quantile(kpi_thresh[cg.LOW])
 
-      ma_size = 5 # running average idx interval from time in seconds
-      kern = box_centered_kernel(len(ave), ma_size)
-      conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( ave.COUNTER ) * np.fft.fft(kern) )))
+    print(f'Router {s} : LOW {l1d_thresh_down:.2f}({kpi_thresh[cg.LOW]} perc) HIGH {l1d_thresh_up:.2f}({kpi_thresh[cg.HIGH]} perc)')
+    dft['l1_diff'] = diff
+    dft['l1_diff_smooth'] = diff_smooth
 
-      ave['SMOOTH'] = conv
-      ave['WDAY'] = ave.index.strftime('%a')
-      ave['TIME'] =  ave.index.time
+    dft['l1_kpi'] = cg.LOW
+    dft.loc[ dft.l1_diff_smooth > l1d_thresh_down, 'l1_kpi'] = cg.AVE
+    dft.loc[ dft.l1_diff_smooth > l1d_thresh_up, 'l1_kpi'] = cg.HIGH
 
-      df_ave =  ave.groupby(['WDAY', 'TIME']).mean()
-      df_ave = df_ave.sort_values(by=['WDAY', 'TIME'])
-      df_ave.to_csv(f'{output}/df_ave_{locName}.csv', sep = ';', index = True)
+    fullt[s] = dft
+    flustats[s] = {
+      'l2_ave'      : l2d_ave,
+      'l2_std'      : l2d_std,
+      'l2_thr'      : l2d_thresh,
+      'l1_ave'      : l1d_ave,
+      'l1_std'      : l1d_std,
+      'l1_thr_up'   : l1d_thresh_up,
+      'l1_thr_down' : l1d_thresh_down,
+    }
 
-    masquer = (df.index >= start_date) & (df.index <= stop_date)
-    df = df.loc[masquer]
+    try:
+      dft = fullt[s]
+    except:
+      print(f'Plot: router {s} not available')
 
-    fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(16, 10))
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10), sharex=True)
+    
+    start_plt = pd.to_datetime('2021-09-20')
+    stop_plt = pd.to_datetime('2021-09-30')
+    masq_plt = (dft.index >= start_plt) & (dft.index <= stop_plt)
+    dft = dft.loc[masq_plt]
 
-    curves = []
-
-    for locName, dfg in df.groupby(['LOC']):
-      df =  dfg.groupby(['DATETIME', pd.Grouper(freq='300s')]).sum()
-      df = df.reset_index(level=[0])
-      df = df.drop(columns='DATETIME')
-      df = df.interpolate(limit_direction='both')
-
-      ma_size = 5 # running average idx interval from time in seconds
-      kern = box_centered_kernel(len(df), ma_size)
-      conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( df.COUNTER ) * np.fft.fft(kern) )))
-
-      df['SMOOTH'] = conv
-      df['DAY'] = df.index.strftime('%a')
-
-      ts = [ t.timestamp() for t in df.index ]
-      tus = 100
-      lus = 4
-      ts_ticks = ts[::tus]
-      ts_lbl = [ t.strftime('%b %a %d') for t in df.index ]
-      ts_lbl = ts_lbl[::tus]
-      ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
-
-      curve, = axs.plot(ts, df.SMOOTH, '-o', label=f'{locName}', markersize=4)
-      curves.append(curve)
-
-      df_daily = df.resample('1D').sum()
-      df_daily = df_daily.interpolate(limit_direction='both')
-      df_daily = df_daily.sort_index()
-
-      kern = box_centered_kernel(len(df_daily), ma_size)
-      conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( df_daily.COUNTER ) * np.fft.fft(kern) )))
-
-      df_daily['SMOOTH'] = conv          
-
-      tsd = [ t.timestamp() for t in df_daily.index ]
-      tusd = 1
-      lusd = 1
-      tsd_ticks = tsd[::tusd]
-      tsd_lbl = [ t.strftime('%a %d %b') for t in df_daily.index ]
-      tsd_lbl = tsd_lbl[::tusd]
-      tsd_lbl = [ t if i%lusd==0 else '' for i, t in enumerate(tsd_lbl)]
-
-      df_daily['date_ordinal'] = pd.to_datetime(df_daily.index).map(datetime.toordinal)
-      slope, intercept, r_value, p_value, std_err = linregress(df_daily['date_ordinal'], df_daily.SMOOTH)
-
-      figg, axxs = plt.subplots(nrows=1, ncols=1, figsize=(16, 10))
-      axxs.plot(tsd, df_daily.SMOOTH, label= 'Data', markersize=4)
-
-      axxs.plot(np.unique(tsd), np.poly1d(np.polyfit(tsd, df_daily.SMOOTH, 1))(np.unique(tsd)), c = 'r', label = 'Trend')#, label = fr'Slope = {slope:.3f} $\pm$ {std_err:.3f} rad')
-
-      axxs.legend()
-      axxs.grid(which='major', linestyle='-')
-      axxs.grid(which='minor', linestyle='--')
-      axxs.set_xticks(tsd_ticks)
-      axxs.set_xticklabels(tsd_lbl, rotation=45, ha='right')
-      axxs.set_ylabel('Number of People per Day')
-      # axxs.set_ylim(0, 70)
-      plt.tight_layout()
-      figg.subplots_adjust(top=0.9)
-      ptitle = f'Trend in "{locName}"'
-      figg.suptitle(ptitle, y=0.98)
-      trend = f'{output}/trend'
-      if not os.path.exists(trend): os.mkdir(trend)
-      figg.savefig(f'{trend}/trend_{locName}.png')
-      plt.close()
-
-      for wday, dfw in df.groupby(['DAY']):
-
-        s_date = pd.to_datetime(str(dfw.last('1D').index.date[0]) + ' ' + '00:00:00')
-        e_date = pd.to_datetime(str(dfw.last('1D').index.date[0]) + ' ' + '23:59:59')
-
-        fullt = pd.date_range(start=s_date,end= e_date, freq=f'5min')
-
-        df_ave = pd.read_csv(f'{output}/df_ave_{locName}.csv', sep = ';', index_col=[0])
-        df_ave = df_ave.loc[wday]
-        # df_ave = df_ave.interpolate(direction='both')
-
-        ma_size = 5 # running average idx interval from time in seconds
-        kern = box_centered_kernel(len(df_ave), ma_size)
-        conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( df_ave.COUNTER ) * np.fft.fft(kern) )))
-        df_ave['SMOOTH'] = conv     
-
-        df_anal = dfw.last('1D')
-        df_anal = df_anal.groupby('DATETIME').sum()
-        # df_anal = (df_anal.reindex(fullt, fill_value=0).reset_index().reindex(columns=['COUNTER', 'SMOOTH'])).set_index(fullt)
-        df_anal = (df_anal.reindex(fullt).reset_index().reindex(columns=['COUNTER', 'SMOOTH'])).set_index(fullt)
-        df_anal = df_anal.interpolate(limit_direction='both')
-
-        # if locName == 'Camera_1_Pile_Gate' and wday == 'Sun':
-        #   print(locName)
-
-        ma_size = 5 # running average idx interval from time in seconds
-        kern = box_centered_kernel(len(df_anal), ma_size)
-        conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( df_anal.COUNTER ) * np.fft.fft(kern) )))
-        df_anal['SMOOTH'] = conv 
-
-        fig2, ax = plt.subplots(nrows=1, ncols=1, figsize=(16, 10))
-
-        ts = [ t.timestamp() for t in df_anal.index ]
-        tus = 3
-        lus = 4
-        ts_ticks = ts[::tus]
-        ts_lbl = [ t.strftime('%b %a %H:%M') for t in df_anal.index ]
-        ts_lbl = ts_lbl[::tus]
-        ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
-
-        ax.plot(ts, df_anal.SMOOTH, '-bo', label=f'Daily Data', markersize=4)
-        ax.plot(ts, df_ave.SMOOTH, '-ro', label=f'{wday} average', markersize=4)
-
-        ax.legend()
-        ax.grid(which='major', linestyle='-')
-        ax.grid(which='minor', linestyle='--')
-        ax.set_xticks(ts_ticks)
-        ax.set_xticklabels(ts_lbl, rotation=45, ha='right')
-        ax.set_ylabel('Counter')
-        # ax.set_ylim(0, 50)
-
-        plt.tight_layout()
-        fig2.subplots_adjust(top=0.9)
-        ptitle = f'Comparison in "{locName}"\non {df_anal.index.date[0]}'
-        plt.suptitle(ptitle, y=0.98)
-
-        comparison = f'{output}/comparison'
-        if not os.path.exists(comparison): os.mkdir(comparison)
-        plt.savefig(f'{comparison}/compare_{locName}_{df_anal.index.date[0].strftime("%Y%m%d")}_{wday}.png')
-
-        plt.close()
-        fig2.clf()
-
-    s_date = pd.to_datetime(str(df.index.date[0]))
-    e_date = pd.to_datetime(str(df.index.date[-1]))
-
-    fullt = pd.date_range(start=s_date,end= e_date, freq=f'5min')
-
-    ts = [ t.timestamp() for t in fullt ]
-    tus = 100
-    lus = 4
+    ts = [ t.timestamp() for t in dft.index ]
+    tus = 24
+    lus = 1
     ts_ticks = ts[::tus]
-    ts_lbl = [ t.strftime('%b %a %d') for t in fullt ]
+    ts_lbl = [ t.strftime('%a %d %b') for t in dft.index ]
     ts_lbl = ts_lbl[::tus]
     ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
 
-    leg = axs.legend()
-    leg.get_frame().set_alpha(0.4)
-    axs.grid(which='major', linestyle='-')
-    axs.grid(which='minor', linestyle='--')
-    axs.set_xticks(ts_ticks)
-    axs.set_xticklabels(ts_lbl, rotation=45, ha='right')
-    axs.set_ylabel('Counter')
+    axes = axs[0]
+    axes.plot(ts, dft.cnt_smooth.values, 'b-o', label=f'Data smoothed', markersize=4)
+    axes.plot(ts, dft.ave_day_cnt.values, 'r--', label='Daily average smoothed')
 
-    curved = dict()
-    for legline, origline in zip(leg.get_lines(), curves):
-      legline.set_picker(5)
-      curved[legline] = origline
+    for t, kpi in zip(ts, dft['l1_kpi'].values):
+      axes.axvspan(t-0.5*fine_freq_s, t+0.5*fine_freq_s, facecolor=data_colors[kpi], alpha=0.3)
 
-    def onpick(event):
-      legline = event.artist
-      origline = curved[legline]
-      vis = not origline.get_visible()
-      origline.set_visible(vis)
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.grid()
+    axes.legend()
+    axes.set_ylabel('Counter')
 
-      if vis:
-          legline.set_alpha(1.0)
-      else:
-          legline.set_alpha(0.2)
-      fig.canvas.draw()
+    axes = axs[1]
+    thresh_up = flustats[s]['l1_thr_up']
+    thresh_down = flustats[s]['l1_thr_down']
+    axes.plot(ts, dft.l1_diff.values, '-o', color='purple', label=f'Fluctuations', markersize=4)
+    axes.plot(ts, dft.l1_diff_smooth.values, 'g-o', label=f'Fluctuations smoothed', markersize=4)
+    axes.axhspan(axes.get_ylim()[0], thresh_down, facecolor=kpi_colors[cg.LOW] , alpha=0.3, label=f'LOW < {kpi_thresh[cg.LOW]} centile')
+    axes.axhspan(thresh_down, thresh_up, facecolor=kpi_colors[cg.AVE] , alpha=0.3)
+    axes.axhspan(thresh_up, axes.get_ylim()[1], facecolor=kpi_colors[cg.HIGH] , alpha=0.3, label=f'HIGH > {kpi_thresh[cg.HIGH]} centile')
 
-    fig.canvas.mpl_connect('pick_event', onpick)
+    axes.set_xticks(ts_ticks)
+    axes.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axes.grid()
+    axes.legend()
+    axes.set_xlabel(f'Daytime [Wday D M]')
+    axes.set_ylabel('Anomaly coefficient [au]')
 
     plt.tight_layout()
-    fig.subplots_adjust(top=0.9)
-    ptitle = f'Number of People'
-    plt.suptitle(ptitle, y=0.98)
-    if args.show:
-      plt.show()
-    else:
-      plt.savefig(f'{output}/compare.png')
-
+    plt.suptitle(f'Router {s}: localanomaly analysis\nAve from {start_ave.date()} to {stop_ave.date()}\n@{freq}', y=0.98)
+    fig.subplots_adjust(top=0.90)
+    plt.savefig(f'{base}/{s}_{freq}_localanomaly.png')
+    # plt.show()
     plt.clf()
+
+    fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(16, 10), sharex=True)
+    axs.plot(ts, dft.cnt_smooth.values, 'b-o', label=f'Data smoothed', markersize=4)
+    axs.plot(ts, dft.ave_day_cnt.values, 'r--', label='Daily average smoothed')
+    axs.set_xticks(ts_ticks)
+    axs.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    axs.grid(which='major')
+    axs.legend()
+    axs.set_ylabel('Counter')
+    axs.set_xlabel(f'Daytime [Wday D M ]')
+
+    plt.tight_layout()
+    plt.suptitle(f'Router {s}: plot comparison\nAve from {start_ave.date()} to {stop_ave.date()}\n@{freq}', y=0.98)
+    fig.subplots_adjust(top=0.90)
+    # plt.show()
+    plt.savefig(f'{base}/{s}_{freq}_comparison.png')
+    plt.clf()
+
+def delta_router_group(data, freq):
+  dubro = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_lavoro', 'dubrovnik')
+  if not os.path.exists(dubro): os.mkdir(dubro)
+  output = f'{dubro}/router_perc_diff'
+  if not os.path.exists(output): os.mkdir(output)
+
+  df = pd.read_csv(data, sep =';', parse_dates=True, index_col=[0])
+  tok = data[:data.find('.')].split('_')
+  start = tok[-4] + "-" + tok[-3]
+  stop = tok[-2] + "-" + tok[-1]
+
+  dt_fmt = '%Y%m%d-%H%M%S'
+  try:
+    start = datetime.strptime(start , dt_fmt)
+    stop = datetime.strptime(stop, dt_fmt)
+  except:
+    print(f'Data format {dt_fmt} doesn\'t match')
+
+  df.index = pd.to_datetime(df.index).rename('date_time')
+  start_date = '2021-09-01 00:00:00'
+  stop_date = '2021-09-30 23:59:59'
+  start_time = pd.to_datetime(start_date)
+  end_time = pd.to_datetime(stop_date)
+  masquer = (df.index >= start_time) & (df.index <= end_time)
+  df = df.loc[masquer]
+  df['group'] = df.device.map(inv_router_group)
+  df['data_time'] = df.index
+  df = df[df['group'].notnull()]
+
+  for group, dfg in df.groupby(['group']):
+    s = pd.Series(dfg['mac_address'], index=dfg.index)
+    df = pd.DataFrame(s.groupby(pd.Grouper(freq=freq)).value_counts())
+    df.columns = ['repetitions_counter']
+    df = df.reset_index()
+    df = df.set_index('date_time')
+    df = df.groupby('date_time')[['mac_address']].count()
+    df = df.resample('1D').sum()
+    df = df.rename(columns={"mac_address":"device_counter"})
+
+    df['wday'] = [ t.strftime('%a') for t in df.index ]
+    d_mean = dict()
+    for day, df_d in df.groupby('wday'):
+      d_mean[day] = df_d.device_counter.mean()
+
+    df['day_mean'] = df.wday.map(d_mean)
+    device_counter_list = df.device_counter.tolist()
+    day_mean_list = df.day_mean.tolist()
+    changes = []
+    for x1, x2 in zip(day_mean_list, device_counter_list):
+      try:
+        pct = (x2 - x1) * 100 / x1
+      except ZeroDivisionError:
+        pct = None
+      changes.append(pct)     
+    df['percentage'] = changes
+    start_plt = pd.to_datetime('2021-09-20')
+    stop_plt = pd.to_datetime('2021-09-30')
+    masq_plt = (df.index >= start_plt) & (df.index <= stop_plt)
+    df = df.loc[masq_plt]
+
+    ts = [ t.timestamp() for t in df.index ]
+    tus = 1
+    lus = 1
+    ts_ticks = ts[::tus]
+    ts_lbl = [ t.strftime('%a %b %d') for t in df.index ]
+    ts_lbl = ts_lbl[::tus]
+    ts_lbl = [ t if i%lus==0 else '' for i, t in enumerate(ts_lbl)]
+    
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10), sharex=True)
+    ax = axs[0]
+    ax.plot(ts, df.device_counter, 'b-o', label= 'Data', markersize=4)
+    ax.plot(ts, df.day_mean, label= f'Daily average', c = 'r', linestyle='dashdot', markersize=4)
+    trend_lim = (1900,5000)
+    ax.legend()
+    ax.grid(which='major', linestyle='-')
+    ax.grid(which='minor', linestyle='--')
+    ax.set_ylabel('Number of People per Day')
+    ax.set_ylim(trend_lim)
+
+    ax = axs[1]
+    # width = 18*3600
+    width = 9*3600
+    ax.bar(ts, df.percentage, width = width, label='test')
+    perc_lim = (-25, 10)
+    ax.grid(which='major', linestyle='-')
+    ax.grid(which='minor', linestyle='--')
+    ax.set_ylabel('Value [%]', color='b')
+    ax.set_ylim(perc_lim)
+    ax.set_title(f'Variation from the average')
+
+    ax.set_xticks(ts_ticks)
+    ax.set_xticklabels(ts_lbl, rotation=45, ha='right')
+    ax.set_xlabel(f'Daytime [Wday M D]')
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.9)
+    ptitle = f'Router group: {router_group[group]}\nAve from {start_time.date()} to {end_time.date()}\n@{freq}'
+    fig.suptitle(ptitle, y=0.98)
+    # plt.show()
+    fig.savefig(f'{output}/perc_diff_{group}_{freq}.png')
     plt.close()
 
-  try:
-   if args.db == 'mysql':
-      conf = config['model_data']['params']['dubrovnik']['mysql']
-      db = mysql.connector.connect(
-        host     = conf['host'],
-        port     = conf['port'],
-        user     = conf['user'],
-        passwd   = conf['pwd'],
-        database = conf['db']
-      )
-      cursor = db.cursor()
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser()
+  parser.add_argument('-d', '--data', help='conf data csv', required=True)
+  parser.add_argument('-f', '--freq', help='freq data', type=int, default = 3600)
 
-      router_map = config['model_data']['params']['dubrovnik']['router_mapping']
-      router_serial = [serial for serial in router_map.values()]
-      router_serial = [router_serial for sublist in router_serial for router_serial in sublist]
+  args = parser.parse_args()
 
-      router_filter = ' OR '.join([ f"d.serial = '{serial}'" for serial in router_serial ])
-      
-      print_sdate = data_inizio.replace(' ', '_').replace(':', '').replace('-', '')
-      print_edate = data_fine.replace(' ', '_').replace(':', '').replace('-', '')      
-
-      query = f"""
-      SELECT
-        d.id,
-        d.name,
-        d.serial
-      FROM
-        Devices d
-      WHERE
-        {router_filter}
-      """
-      cursor.execute(query)
-      result = cursor.fetchall()
-      routconv = { v[0] : v[1] for v in result }
-      idserial = {v[0] : v[2] for v in result}
-      # print('sid', routconv)
-
-      if args.query:
-        query = f"""
-          SELECT
-            ds.eventOccurredAt AS 'DATETIME',
-            ds.id_device AS station,
-            COUNT(ds.eventClientiId) as COUNTER
-            #ds.eventClientiId
-            #ds.*
-          FROM	
-            DevicesEvents ds
-          WHERE
-           ds.eventOccurredAt > ('{data_inizio}') AND ds.eventOccurredAt < ('{data_fine}') 
-           AND ds.eventClientiId != ''
-           AND (ds.id_device in {tuple(routconv.keys())} )
-          GROUP BY ds.eventClientiId, ds.id_device
-          ORDER BY ds.eventOccurredAt ASC
-        """
-        print(query)
-        tquery = datetime.now()
-        cursor.execute(query)
-        result = cursor.fetchall()
-        # print(result)
-        tquery = datetime.now() - tquery
-        print(f'Received {len(result)} mysql data in {tquery}')
-
-        df = pd.DataFrame(result)
-        df.columns =  cursor.column_names
-        df.index = df.DATETIME
-        df = df.drop(columns='DATETIME')
-        df['LOC'] = df['station'].map(routconv)
-        df.to_csv(f'{save_path}/df_{print_sdate}_{print_edate}.csv', sep = ';')
-      else:
-        df = pd.read_csv(f'{save_path}/df_{print_sdate}_{print_edate}.csv', sep = ';', header=[0], index_col=[0], parse_dates=True)
-
-      df_grouped = df.copy()
-      df = df.drop(columns='station')
-
-      df_grouped['IDSERIAL'] = df_grouped['station'].map(idserial)
-      df_grouped['GROUPCAMERA'] = [k for ids in df_grouped.IDSERIAL for k, v in router_map.items() if ids in v]
-      df_grouped = df_grouped.drop(columns=['station', 'LOC', 'IDSERIAL'])
-      df_grouped = df_grouped.rename(columns={'GROUPCAMERA':'LOC'})
-
-      data_analysis(df, output_raw)
-      data_analysis(df_grouped, output_agg)
-
-  except Exception as e:
-    print('Connection error : {}'.format(e))
+  data = args.data
+  freq = f'{args.freq}s'
+  localanomaly(data, freq)
+  delta_router_group(data, freq)

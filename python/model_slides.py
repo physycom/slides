@@ -47,7 +47,7 @@ class model_slides:
     self.got_data = False
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
-    self.rates_dt = 5 * 60
+    self.rates_dt = 15 * 60
     self.config = config
 
     self.wdir = config['work_dir']
@@ -102,7 +102,7 @@ class model_slides:
   def full_table(self, start, stop, city, tag):
     #print((city, tag), self.models.keys())
     #print(self.models)
-    logger.info(f'Creating data for {city} {tag}')
+    logger.info(f'Creating data for {city} {tag}, from {start} to {stop}')
     if not (city, tag) in self.models:
       self.create_model0(city, tag)
 
@@ -131,6 +131,7 @@ class model_slides:
     elif city == 'sybenik':
       m01 = 'SY'
       try:
+        logger.info(f'SY Full Table parameters -> start: {start}, tag: {tag}, start: {start}, stop: {stop}, resampling: {self.rates_dt}')
         data = self.mod_sy.full_table(start, stop, tag, resampling=self.rates_dt)
       except Exception as e:
         logger.warning(f'Model {m01} {tag} : {e}')
@@ -363,7 +364,7 @@ class model_slides:
     df['tot-smooth'] = (max_pop - min_pop) * norm + min_pop
     #print(df['tot-smooth'].min(), df['tot-smooth'].max())
 
-    df = df[['tot-smooth']].rename({'tot-smooth':'data'})
+    df = df[['tot-smooth']].rename(columns={'tot-smooth':'data'})
     df = df[ (df.index >= start) & (df.index < stop) ]
     # print(df)
     return df

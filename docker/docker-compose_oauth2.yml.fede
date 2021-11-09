@@ -1,0 +1,27 @@
+# build image with with
+# > docker-compose build
+# create and run container with
+# > docker-compose up -d slides_oauth2_ws
+
+version: '3.4'
+
+services:
+  slides_oauth2_ws:
+    container_name: slides_oauth2_container
+    build:
+      context: '.'
+      dockerfile: slides2.dockerfile
+    image: slides2_image
+    environment:
+      - TZ=Europe/Rome
+      - ACCESS_LOG=/output/slides_access.log
+      - ERROR_LOG=/output/slides_errors.log
+      - WORKERS_PER_CORE=1
+      - MAX_WORKERS=5
+      - TIMEOUT=300
+      - HOST=0.0.0.0
+      - PORT=80
+    ports:
+      - 11002:80
+    volumes:
+      - /volume1/data/docker/slides2:/output
