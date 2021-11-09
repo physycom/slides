@@ -19,7 +19,7 @@ class meraki_dumper():
     }
     self.devdatafile = 'station_metadata.csv'
 
-  def create_devices_data(self, devdatafile):
+  def create_devices_data(self):
     payload = self.payload
     headers = self.headers
     try:
@@ -56,7 +56,7 @@ class meraki_dumper():
 
       devdata = devices[['serial', 'networkId', 'status']].merge(geodevices[['lat', 'lng', 'serial', 'name']], how='outer', left_on='serial', right_on='serial')
       devdata.index.name = 'id'
-      devdata.to_csv(devdatafile, sep=';', index=True)
+      devdata.to_csv(self.devdatafile, sep=';', index=True)
       #print(devdata)
     except Exception as e:
       print(f'Problems with devices metadata : {e}')
@@ -145,4 +145,5 @@ if __name__ == '__main__':
     config = json.load(cin)
 
   dumper = meraki_dumper(config)
-  dumper.dump_data()
+  dumper.create_devices_data()
+  #dumper.dump_data()
