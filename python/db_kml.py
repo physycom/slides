@@ -357,12 +357,12 @@ class db_kml:
 
       # skip closing days
       if 'all' in cds or weekday in cds:
-        logger.warning(f'Attraction {name} is closed for all in weekday')
+        logger.debug(f'Attraction {name} is closed for all in weekday')
         continue
 
       # skip if today is in close date or period
       if today in close_dt:
-        logger.warning(f'Attraction {name} is in close date')
+        logger.debug(f'Attraction {name} is in close date')
         continue
 
       close_founded = False
@@ -373,13 +373,13 @@ class db_kml:
           close_founded = True
 
       if close_founded == True:
-        logger.warning(f'Attraction {name} is in close period {start}:{stop} ')
+        logger.debug(f'Attraction {name} is in close period {start}:{stop} ')
         continue
 
       # skip non-active date if needed
       if not 'all' in open_dt:
         if not today in open_dt:
-          logger.warning(f'Attraction {name} is not in active day all')
+          logger.debug(f'Attraction {name} is not in active day all')
           continue
 
       capacity = row['capacity']

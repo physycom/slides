@@ -28,7 +28,7 @@ class model_ferrara():
     self.got_data = False
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
-    self.rates_dt = 10 * 60
+    self.rates_dt = 15 * 60
     self.config = config
     self.station_map = {}
     self.data = pd.DataFrame()
@@ -77,6 +77,7 @@ class model_ferrara():
       data = data.reindex(fullt).interpolate(direction='both')
 
     data = data[ (data.index >= start) & (data.index < stop) ]
+    #print(data)
     return data
 
   def count_raw(self, start, stop):

@@ -11,35 +11,27 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from collections import defaultdict
 
+#################
+#### logging ####
+#################
+import logging
+logger = logging.getLogger('mod_sy')
+
 #############################
 #### model sybenik class ####
 #############################
 class model_sybenik():
 
-  def __init__(self, config, logger = None):
+  def __init__(self, config):
     self.config = config
+    self.camera_map = None
+
+    if 'camera_mappings' in self.config:
+      self.camera_map = self.config['camera_mappings']
 
   def full_table(self, start, stop, tag, resampling=None):
-    import logging
-    logger = logging.getLogger('m_sybenik')
-
-    camera_map ={
-      "Porto" : "Port_Of_Šibenik"
-    }
-
-    logger.info(f'camera_map : {camera_map}')
-    logger.info(f'tag : {tag}')
-    logger.info(f'camera_map.values : {camera_map}')
-
-
-    if tag in camera_map.values():
-      
-      logger.info(f'self.config : {self.config}')
-      
+    if tag in self.camera_map.values():
       config = self.config['mysql']
-
-      logger.info(f'config is {config}')
-
       db = mysql.connector.connect(
         host     = config['host'],
         port     = config['port'],
@@ -49,8 +41,7 @@ class model_sybenik():
       )
       cursor = db.cursor()
 
-      camera_filter = ' OR '.join([ f"m.CAM_NAME = '{name}'" for name in camera_map ])
-
+      camera_filter = ' OR '.join([ f"m.CAM_NAME = '{name}'" for name in self.camera_map ])
       query = f"""
         SELECT
           m.UID,
@@ -77,7 +68,6 @@ class model_sybenik():
           AND
           (BARRIER_UID in {tuple(sidconv.keys())} )
       """
-      logger.info(f'query:\n {query}')
       # print('\nquery\n',query)
       tquery = datetime.now()
       cursor.execute(query)
@@ -129,7 +119,7 @@ class model_sybenik():
         #   np.zeros((pad_len - pad_len // 2))# for odd box_len
         #   ])
         #   return kern
-        
+
         # ma_size = 5 # running average idx interval from time in seconds
         # kern = box_centered_kernel(len(data), ma_size)
         # conv = np.fft.fftshift(np.real(np.fft.ifft( np.fft.fft( data.tag ) * np.fft.fft(kern) )))

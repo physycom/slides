@@ -15,22 +15,15 @@ from collections import defaultdict
 ##########################
 #### log function ########
 ##########################
-def logs(s):
-  head = '{} [mod_du] '.format(datetime.now().strftime('%y%m%d %H:%M:%S'))
-  return head + s
-
-def log_print(s, logger = None):
-  if logger:
-    logger.info(logs(s))
-  else:
-    print(logs(s), flush=True)
+import logging
+logger = logging.getLogger('mod_du')
 
 #############################
 #### model ferrara class ####
 #############################
 class model_dubrovnik():
 
-  def __init__(self, config, logger = None):
+  def __init__(self, config):
     self.logger = logger
     self.cnt = pd.DataFrame()
     self.date_format = '%Y-%m-%d %H:%M:%S'
@@ -46,10 +39,8 @@ class model_dubrovnik():
 
     self.station_map = config['station_mapping']
     self.station_mapid = { k : [ st_ser2id[si] for si in v ] for k,v in self.station_map.items() }
-    #for k,v in self.station_map.items(): log_print(f'Source {k}\n{v}\n{self.station_mapid[k]}', self.logger)
     self.source_map = { i : k for k,v in self.station_map.items() for i in v }
     self.source_mapid = { i : k for k,v in self.station_mapid.items() for i in v }
-    #for (k,v),(k1,v1) in zip(self.source_map.items(), self.source_mapid.items()): log_print(f'Sniffer {k} ({k1}) : {v} ({v==v1})', self.logger)
 
   def full_table(self, start, stop, tag, resampling=None):
     start = pd.to_datetime(start).tz_localize('Europe/Rome').tz_convert('utc')
@@ -90,8 +81,6 @@ class model_dubrovnik():
     """
     Perform device id counting with fine temporal scale
     """
-    #log_print(f'Counting raw data', self.logger)
-
     df = self.get_data(start, stop)
 
     fine_freq = f'{self.rates_dt}s'
@@ -131,7 +120,7 @@ class model_dubrovnik():
 
     cnts.index.name = 'time'
     tcounting = datetime.now() - tnow
-    log_print(f'Counting done in {tcounting}', self.logger)
+    self.logger.debug(f'Counting done in {tcounting}')
     #print(cnts)
 
     self.cnt = cnts.astype(int)
@@ -169,7 +158,7 @@ class model_dubrovnik():
       cursor.execute(query)
       result = cursor.fetchall()
       tquery = datetime.now() - tquery
-      log_print(f'Received {len(result)} mysql data in {tquery}', self.logger)
+      self.logger.info(f'Received {len(result)} mysql data in {tquery}')
       if len(result) == 0:
         raise Exception(f'[mod_fe] Empty mysql query result')
 
@@ -212,7 +201,7 @@ class model_dubrovnik():
     cursor.execute(query)
     result = cursor.fetchall()
     tquery = datetime.now() - tquery
-    log_print(f'Received {len(result)} mysql data in {tquery}', self.logger)
+    self.logger.debug(f'Received {len(result)} mysql data in {tquery}')
     if len(result) == 0:
       raise Exception(f'[mod_fe] Empty mysql query result')
 

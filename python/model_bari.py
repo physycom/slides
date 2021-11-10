@@ -28,34 +28,40 @@ class model_bari():
     self.got_data = False
     self.date_format = '%Y-%m-%d %H:%M:%S'
     self.time_format = '%H:%M:%S'
-    self.rates_dt = 10 * 60
+    self.rates_dt = 15 * 60
     self.config = config
-    self.station_map = {}
+    self.camera_map = {}
     self.data = pd.DataFrame()
 
-    if 'station_mapping' in config:
-      self.station_map = config['station_mapping']
+    if 'camera_mapping' in config:
+      self.camera_map = config['camera_mapping']
 
-    with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'extra', 'bari_cam_loc.json')) as sin:
-      self.st_info = json.load(sin)
+    # df = pd.read_csv('sacro_match.csv', sep=';')
+    # df = df.rename(columns={'Ai-Tech_Id': 'id', 'Latitude':'lat', 'Longitude':'lon'})
+    # df['name'] = [ f'{i:02d}' for i in df.id ]
+    # print(df)
+    # with open('bari_cameras.json', 'w') as cout:
+    #   json.dump(df.to_dict(orient='records'), cout, indent=2)
+
+    with open(os.path.join(os.environ['WORKSPACE'], 'slides', 'vars', 'extra', 'bari_cameras.json')) as sin:
+      self.cam_info = json.load(sin)
 
   def full_table(self, start, stop, tag, resampling=None):
-    if len(self.station_map) == 0:
+    if len(self.camera_map) == 0:
       raise Exception(f'No station to generate')
 
     logger.info(f'Generating model BA for {tag}')
 
     if len(self.data) == 0:
-      self.count_raw(start, stop)
+      self.get_data_mysql(start, stop)
 
     # retrieve data
-    data = self.data
-    #print(data)
-    if tag in data:
-      data = data[[tag]]
+    alldata = self.data
+    if tag in alldata:
+      data = alldata[[tag]]
       #print(data[[tag]])
     else:
-      raise Exception(f'[mod_fe] No station match for source {tag}')
+      raise Exception(f'No station match for source {tag}')
 
     # upsample
     if resampling != None and resampling < self.rates_dt:
@@ -79,64 +85,9 @@ class model_bari():
     data = data[ (data.index >= start) & (data.index < stop) ]
     return data
 
-  def count_raw(self, start, stop):
-    """
-    Perform device id counting with fine temporal scale
-    """
-    #logger.info(f'Counting raw data')
-
-    df = self.get_data_mysql(start, stop)
-
-    fine_freq = f'{self.rates_dt}s'
-
-    df['wday'] = [ t.strftime('%a') for t in df.index ]
-    df['date'] = df.index.date
-    df['time'] = df.index.time
-    #print(df)
-
-    tnow = datetime.now()
-    cnts = pd.DataFrame(index=pd.date_range(start, stop, freq=fine_freq))
-    for station, dfg in df.groupby(['barrier_uid']):
-      print(station)
-      s = pd.Series(dfg['counter'], index=dfg.index)
-      dfu = pd.DataFrame(s.groupby(pd.Grouper(freq=fine_freq)).sum())
-      dfu.columns = [station]
-      dfu = dfu.reset_index()
-      dfu = dfu.set_index('date_time')
-      cnts[station] = np.nan
-      mrg = cnts[[station]]
-      mrg = pd.merge(mrg, dfu, left_index=True, right_index=True, how='left', suffixes=('_cnts', ''))
-      #print('merge\n', mrg)
-      cnts[station] = mrg[str(station)]
-
-
-    # fix null/empty/nan/missing values
-    #cnts[ cnts == 0 ] = np.nan # scelta 1)
-    cnts = cnts.reset_index().interpolate(limit=10000, limit_direction='both').set_index('index')
-    cnts.index.name = 'time'
-    tcounting = datetime.now() - tnow
-    logger.info(f'Counting done in {tcounting}')
-    #print(cnts)
-
-    #ricomincia da qui
-    exit(8)
-
-    # convert to source/attractions naming convention and apply station-to-source mapping
-    smap = self.station_map
-    data = pd.DataFrame(index=cnts.index)
-    for sid, names in smap.items():
-      for name in names:
-        try:
-          data[name] = cnts[sid] / len(names)
-        except Exception as e:
-          logger.error(f'Error in reconstructing source {name} from sniffer {sid} : {e}')
-    #print(data)
-
-    self.data = data.astype(int)
-
   def get_data_mysql(self, start, stop):
     try:
-      station_list = self.station_map.keys()
+      camera_list = self.camera_map.keys()
       start_date = start.strftime(self.date_format)
       stop_date = stop.strftime(self.date_format)
 
@@ -151,40 +102,20 @@ class model_bari():
       )
       cursor = db.cursor()
       # fetch mysql station id
-      station_list = list(self.station_map.keys())
-      station_filter = ' OR '.join([ f"bm.CAM_NAME = '{sid}'" for sid in station_list ])
-
+      camera_list = sum(self.camera_map.values(), [])
       query = f"""
         SELECT
-          bm.UID,
-          bm.CAM_NAME,
-          bm.BARRIER_NAME
+          bc.station_name as camera_id,
+          bc.date_from as date_time,
+          bc.sum_s2 + bc.sum_s3 as counter
         FROM
-          barriers_meta bm
+          DevicesStationsCollectedBarriers bc
         WHERE
-          {station_filter}
-        AND
-          bm.BARRIER_NAME != 'S1'
+          (bc.date_from >= '{start_date}' AND bc.date_from < '{stop_date}')
+          AND
+          (bc.station_name IN {tuple(camera_list)} )
       """
       #print(query)
-      cursor.execute(query)
-      result = cursor.fetchall()
-      sidconv = { v[0] : v[2] for v in result }
-      #print('sid', sidconv)
-      query = f"""
-        SELECT
-          bc.DATETIME as date_time,
-          bc.TIMESTAMP as timestamp,
-          bc.COUNTER as counter,
-          bc.TOTAL_COUNTER as total_counter,
-          bc.BARRIER_UID as barrier_uid
-        FROM
-          barriers_cnt bc
-        WHERE
-          (bc.DATETIME >= '{start_date}' AND bc.DATETIME < '{stop_date}')
-          AND
-          (bc.BARRIER_UID IN {tuple(sidconv.keys())} )
-      """
       cursor.execute(query)
       result = cursor.fetchall()
       logger.info(f'Received {len(result)} mysql data')
@@ -193,32 +124,37 @@ class model_bari():
 
       df1 = pd.DataFrame(result)
       df1.columns =  cursor.column_names
-      df1 = df1.set_index('date_time')
-      df1 = df1.sort_index()
-      df1.index = pd.to_datetime(df1.index)
-      df1['barrier_name'] = [ sidconv[n] for n in df1.barrier_uid ]
-      df = df1
+      df1.camera_id = df1.camera_id.interpolate().astype('int')
+      df1.date_time = pd.to_datetime(df1.date_time)
+      df1 = df1.set_index(['camera_id', 'date_time']).unstack(level=0)
+      #print(df1)
 
-      return df
+      # merge cameras to sources
+      data = pd.DataFrame(index=df1.index)
+      for sid, names in self.camera_map.items():
+        ilist = [ ('counter', n) for n in names ]
+        data[sid] = df1[ilist].sum(axis=1)
+
+      self.data = data
+      return data
     except Exception as e:
-      raise Exception(f'[mod_fe] Query failed : {e}')
+      raise Exception(f'Query failed : {e}')
 
   def map_station_to_source(self):
-    stations = pd.DataFrame.from_dict(self.st_info).transpose()
-    stations = stations.drop(columns=['cluster'])
+    camera = pd.DataFrame.from_dict(self.cam_info).set_index('id', drop=False)
+    #print(stations)
 
-    map_center = stations[['latitude', 'longitude']].mean().values
-    sourcemap = defaultdict(lambda: 'none')
-    sourcemap.update({ i : k for k, v in self.station_map.items() for i in v })
-    # print(sourcemap)
-    stationsmap = defaultdict(lambda: 'none')
-    stationsmap.update({ v:k for k,v in sourcemap.items() })
-    # print(stationsmap)
-    stations['source'] = [ stationsmap[str(i)] for i in stations.index ]
-    stations['color'] = [ 'blue' if i != 'none' else 'red' for i in stations.source ]
-    # print(stations)
+    map_center = camera[['lat', 'lon']].mean().values
+    cameramap = defaultdict(lambda: 'none')
+    cameramap.update({ i : k for k, v in self.camera_map.items() for i in v })
+    #print(cameramap)
+    camera['source'] = [ cameramap[i] for i in camera.id ]
+    camera['color'] = [ 'blue' if i != 'none' else 'red' for i in camera.source ]
+    #print(camera)
 
-    simconf = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_ws', 'output', 'wsconf_sim_ferrara.json')
+    #print(camera.groupby(['lat', 'lon']).agg({'name':'sum'}))
+
+    simconf = os.path.join('conf_bari.json')
     with open(simconf) as sin:
       sconf = json.load(sin)
     sources = pd.DataFrame.from_dict(sconf['sources']).transpose().dropna(subset=['source_location'])
@@ -227,27 +163,21 @@ class model_bari():
     sources['lat'] = sources.source_location.apply(lambda x: x['lat'])
     sources['lon'] = sources.source_location.apply(lambda x: x['lon'])
     sources['type'] = 'synth'
-    sources.loc[ [ i for v in self.station_map.values() for i in v ], 'type'] = 'data'
-    colors = { 'synth':'red', 'data':'blue'}
-    sources['color'] = sources.type.apply(lambda t: colors[t])
-    sources['station'] = sources.name.apply(lambda n: sourcemap[n] )
-    #sources[['lat', 'lon']] = sources.source_location.apply(lambda x: { 'lat':x['lat'], 'lon':x['lon'] })
-    sources = sources[['lat', 'lon', 'name', 'color', 'station']]
-    # print(sources)
-    # print(sources.columns)
+    sources['color'] = 'blue'
+    print(sources)
 
     import folium
     m = folium.Map(location=map_center, control_scale=True, zoom_start=9)
-    stations.apply(lambda row: folium.CircleMarker(
-      location=[row.latitude, row.longitude],
+    camera.apply(lambda row: folium.CircleMarker(
+      location=[row.lat, row.lon],
       radius=7,
       fill_color=f'{row.color}',
       color=f'{row.color}',
-      popup=folium.Popup(f'<p><b>STATION</b></br>id <b>{row.station_id}</b></br>name <b>{row.name}</b></br>source <b>{row.source}</b></p>', show=False, sticky=True),
+      popup=folium.Popup(f'<p><b>CAMERA</b></br>id <b>{row.id}</b></br>source <b>{row.source}</b></p>', min_width=300, max_width=300, show=False, sticky=True),
     ).add_to(m), axis=1)
-    sources[ sources.station != 'none' ].apply(lambda row: folium.PolyLine(
+    camera[ camera.source != 'none' ].apply(lambda row: folium.PolyLine(
       locations=[
-        [ stations.loc[row.station, 'latitude'], stations.loc[row.station, 'longitude'] ],
+        [ sources.loc[row.source, 'lat'], sources.loc[row.source, 'lon'] ],
         [ row.lat, row.lon ]
       ],
       color='black',
@@ -259,12 +189,12 @@ class model_bari():
       fill_color=f'{row.color}',
       color=f'{row.color}',
       fill_opacity=1.0,
-      popup=folium.Popup(f'<p><b>SOURCE</b></br>id <b>{row.name}</b></p>', show=True, sticky=True),
+      popup=folium.Popup(f'<p><b>SOURCE</b></br>id <b>{row.name}</b></p>', max_width=300, show=True, sticky=True),
     ).add_to(m), axis=1)
-    s, w = stations[['latitude', 'longitude']].min()
-    n, e = stations[['latitude', 'longitude']].max()
+    s, w = camera[['lat', 'lon']].min()
+    n, e = camera[['lat', 'lon']].max()
     m.fit_bounds([ [s,w], [n,e] ])
-    m.save(f'map_sniffer2sources.html')
+    m.save(f'map_cameras2sources.html')
 
 
 if __name__ == '__main__':
@@ -277,12 +207,13 @@ if __name__ == '__main__':
   with open(args.cfg) as f:
     config = json.load(f)
 
+  config = config['model_data']['params']['bari']
   mba = model_bari(config)
 
-  if 0:
+  if 1:
     mba.map_station_to_source()
 
-  if 1:
+  if 0:
     start = datetime.strptime(config['start_date'], mba.date_format)
     stop = datetime.strptime(config['stop_date'], mba.date_format)
     df = mba.full_table(start, stop, 'Stazione')

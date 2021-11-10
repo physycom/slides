@@ -74,7 +74,7 @@ class conf:
 
     # attractions
     attr = self.dbk.get_attractions(citytag, start)
-    max_attr = 15
+    max_attr = 25
     if len(attr) > max_attr:
       logger.warning(f'*********** Lowering attractions number to {max_attr}')
       attr = { k : v for k, v in list(attr.items())[:max_attr] }
@@ -142,6 +142,7 @@ class conf:
     # cast dataframe to timetable json format
     for tag in srcdata.columns:
       data = srcdata[[tag]].copy()
+
 
       # wrap around midnight
       tt = ttrates.copy()

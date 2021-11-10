@@ -273,7 +273,10 @@ async def sim_post(body: body_sim, request: Request, citytag: str = 'null', curr
 
   # run simulation
   s = simulation(confs)
-  logger.info(f'sim info : {s.sim_info()}')
+  logger.debug(f'sim info :')
+  for line in s.sim_info().split('\n'):
+    if line != '': logger.debug(line)
+
   if s.is_valid():
     tsim = datetime.now()
     s.run()

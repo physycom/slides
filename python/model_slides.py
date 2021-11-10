@@ -56,7 +56,7 @@ class model_slides:
     # init city-specific model
     self.mod_fe = model_ferrara(config['params']['ferrara'])
     self.mod_du = model_dubrovnik(config['params']['dubrovnik'])
-    # self.mod_ba = model_bari(config['params']['bari'])
+    self.mod_ba = model_bari(config['params']['bari'])
     self.mod_sy = model_sybenik(config['params']['sybenik'])
 
     self.models = {}
@@ -131,12 +131,10 @@ class model_slides:
     elif city == 'sybenik':
       m01 = 'SY'
       try:
-        logger.info(f'SY Full Table parameters -> start: {start}, tag: {tag}, start: {start}, stop: {stop}, resampling: {self.rates_dt}')
         data = self.mod_sy.full_table(start, stop, tag, resampling=self.rates_dt)
       except Exception as e:
         logger.warning(f'Model {m01} {tag} : {e}')
         data = pd.DataFrame()
-
     elif 'm1' in model:
       m01 = 'm1'
       mfile = self.models[(city,tag)][m01]
@@ -144,14 +142,13 @@ class model_slides:
     else:
       data = pd.DataFrame()
 
-
     if not tag in data.columns:
       m01 = 'm0'
       mfile = self.models[(city,tag)][m01]
       data = pd.read_csv(mfile, sep=';')
       dtot = self.params[city]['daily_t']
       data = self.rescale_data(start, stop, data, tot=dtot).rename(columns={'data':tag})
-      # print('rescaled\n', data)
+      #print('rescaled\n', data)
 
     logger.info(f'Data created for ({city}, {tag}) mode {m01}')
     return data
