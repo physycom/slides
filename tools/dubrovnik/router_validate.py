@@ -111,6 +111,10 @@ if __name__ == '__main__':
     else:
       stats = pd.concat([stats, dfr], axis=1).fillna(0)
 
+  # device_list = []
+  device_list = ['131', '132', '133', '134', '135', '136', '137', '138']
+  if len(device_list) != 0: stats = stats[device_list]
+
   # plot
   w, h, d = 10, 10, 150
   plt.figure(figsize=(w, h), dpi=d)
