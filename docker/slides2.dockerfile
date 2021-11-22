@@ -23,7 +23,7 @@ WORKDIR /root/Code
 RUN git config --global user.name "slidesmap" && git config --global user.email slidesmap@gmail.com
 RUN git clone git@github.com:physycom/sysconfig.git && git clone git@github.com:pybind/pybind11.git
 
-ENV SLIDES_VERSION "v3.2.18"
+ENV SLIDES_VERSION "v3.2.20"
 RUN \
   echo ${SLIDES_VERSION} > /slides_version && \
   git clone git@github.com:physycom/slides.git && \
@@ -33,7 +33,7 @@ RUN \
 
 RUN \
   cd /root/Code/slides/ && \
-  cp pvt/conf/conf.json.docker vars/conf/conf.json && \
+  cp pvt/conf/conf.json.docker.a vars/conf/conf.json && \
   cp /root/Code/slides/python/sim-ws-oauth2.py /app/main.py
 
 COPY ./prestart.sh /app/prestart.sh
