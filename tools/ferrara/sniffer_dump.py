@@ -194,40 +194,47 @@ if __name__ == '__main__':
       }
       dict_inv = {i:j for j,i in dict_station.items()}
 
-      start_date = pd.to_datetime(start_date, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
-      stop_date = pd.to_datetime(stop_date, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
+      time_chunk = int(args.tc)
+      start = pd.to_datetime(start_date)
+      stop = pd.to_datetime(stop_date)
+      tnow = start
+      df_list = []
+      df_all = pd.DataFrame(columns=["_id","date_time","mac-address","data_type","station_id"])
+      while tnow < stop:
+        try:
+          trange = tnow + timedelta(hours=time_chunk)
+          start_date = pd.to_datetime(tnow, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
+          stop_date = pd.to_datetime(trange, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
+  
+          data = {
+              "apikey": "F0T+w/RZrYHpKoXW/I+krQ==",
+              # "station_id": f'{str(dict_inv["Ferrara-1"])}',
+              "start_dt": f"{start_date}",
+              "stop_dt": f"{stop_date}"
+          }
+          header={
+              'Content-Type': 'application/json',
+          }
+          r=requests.post(url, data=json.dumps(data), verify=False, headers=header)
+          
+          print(f'Data received by sub-query: from {tnow} to {trange}')
+          df = pd.DataFrame.from_dict(r.json())
+          col_list = ["_id","date_time","mac-address","data_type","station_id"]
+          df = df[col_list]
+          df['station_name'] = df['station_id'].map(dict_station)
+          df = df.drop(columns=['station_id', '_id'])
+          df = df.rename(columns={"data_type": "kind"})
+          df['date_time'] = pd.to_datetime(df.date_time, format='%d/%m/%Y_%H:%M')
+          df = df.sort_values(by="date_time")
+          df = df.set_index('date_time')
+          df_list.append(df)
+        except Exception as e:
+          print('Connection error : {}'.format(e))
 
-      data = {
-          "apikey": "F0T+w/RZrYHpKoXW/I+krQ==",
-          "station_id": f'{str(dict_inv["Ferrara-1"])}',
-          "start_dt": f"{start_date}",
-          "stop_dt": f"{stop_date}"
-      }
-      header={
-          'Content-Type': 'application/json',
-      }
-      r=requests.post(url, data=json.dumps(data), verify=False, headers=header)
+        tnow = trange      
+      df_all = pd.concat(df_list)
 
-      ## Check json file
-      # with open(f'{outdir}/test.json', 'w') as aout:
-      #   json.dump(r.json(), aout, indent=2)
-
-      df = pd.DataFrame.from_dict(r.json())
-      col_list = ["_id","date_time","mac-address","data_type","station_id"]
-      df = df[col_list]
-      df['station_name'] = df['station_id'].map(dict_station)
-      df = df.drop(columns=['station_id', '_id'])
-      df = df.rename(columns={"data_type": "kind"})
-      df['date_time'] = pd.to_datetime(df.date_time, format='%d/%m/%Y_%H:%M')
-      df = df.sort_values(by="date_time")
-      df = df.set_index('date_time')
-
-      # out = f'{outdir}/{base}_{start_tag}_{stop_tag}_{args.dev}.csv'
-      out = f'{outdir}/{base}_{start_tag}_{stop_tag}_{str(df["station_name"].iloc[0])}.csv'
-
-      df.to_csv(out, sep=';', header=True, index=True)      
-      print(f'Data saved for station {str(df["station_name"].iloc[0])} on => {out}')
-
-  except Exception as e:
-    print('Connection error : {}'.format(e))
+      out = f'{outdir}/{base}_{start_tag}_{stop_tag}_{args.dev}.csv'
+      df_all.to_csv(out, sep=';', header=True, index=True)      
+      print(f'Data saved for station on => {out}')      
 
