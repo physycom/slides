@@ -2,8 +2,10 @@
 
 from pandas.tseries.offsets import Hour
 import pymongo
+import requests
 import json
 import argparse
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
@@ -14,7 +16,7 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('-c', '--cfg', help='config file', required=True)
   parser.add_argument('-d', '--dev', help='filter wrt device type', choices=['both', 'wifi', 'bt'], default='both')
-  parser.add_argument('-db', '--db', choices=['mongo', 'mysql'], default='mysql')
+  parser.add_argument('-db', '--db', choices=['mongo', 'mysql','api'], default='mysql')
   parser.add_argument('-tc', '--tc', help='time [H] for each chunk', default=2)
 
   args = parser.parse_args()
@@ -174,5 +176,58 @@ if __name__ == '__main__':
       out = f'{base}_{start_tag}_{stop_tag}_{args.dev}.csv'
       df_all.to_csv(out, sep=';', header=True, index=False)    
 
+    elif args.db == 'api':
+      import urllib3
+      urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+      base = base.split('/')[-1]
+      outdir = os.path.join(os.environ['WORKSPACE'], 'slides', 'work_serra')
+      if not os.path.exists(outdir): os.mkdir(outdir)
+      url='https://openplatcol.m-iotechnology.it/snifferplatform/api_v1/timeSeries/'
+      dict_station = {
+        'adc5794e-fc0d-4d3b-bbde-8ada05f88b5d' : 'Ferrara-1',
+        '4f875711-c315-47cc-8f8e-0293044d790e' : 'Ferrara-2',
+        'ef3232e8-b559-46f8-ade4-74855a8bf9e4' : 'Ferrara-3',
+        '5c8ff276-f0b2-476d-8690-5174db4a1aec' : 'Ferrara-4',
+        '053f4694-9c96-4d54-8059-693603a615dc' : 'Ferrara-5',
+        '9227deaf-bc21-4133-811a-62d695df3327' : 'Ferrara-6'
+      }
+      dict_inv = {i:j for j,i in dict_station.items()}
+
+      start_date = pd.to_datetime(start_date, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
+      stop_date = pd.to_datetime(stop_date, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
+
+      data = {
+          "apikey": "F0T+w/RZrYHpKoXW/I+krQ==",
+          "station_id": f'{str(dict_inv["Ferrara-1"])}',
+          "start_dt": f"{start_date}",
+          "stop_dt": f"{stop_date}"
+      }
+      header={
+          'Content-Type': 'application/json',
+      }
+      r=requests.post(url, data=json.dumps(data), verify=False, headers=header)
+
+      ## Check json file
+      # with open(f'{outdir}/test.json', 'w') as aout:
+      #   json.dump(r.json(), aout, indent=2)
+
+      df = pd.DataFrame.from_dict(r.json())
+      col_list = ["_id","date_time","mac-address","data_type","station_id"]
+      df = df[col_list]
+      df['station_name'] = df['station_id'].map(dict_station)
+      df = df.drop(columns=['station_id', '_id'])
+      df = df.rename(columns={"data_type": "kind"})
+      df['date_time'] = pd.to_datetime(df.date_time, format='%d/%m/%Y_%H:%M')
+      df = df.sort_values(by="date_time")
+      df = df.set_index('date_time')
+
+      # out = f'{outdir}/{base}_{start_tag}_{stop_tag}_{args.dev}.csv'
+      out = f'{outdir}/{base}_{start_tag}_{stop_tag}_{str(df["station_name"].iloc[0])}.csv'
+
+      df.to_csv(out, sep=';', header=True, index=True)      
+      print(f'Data saved for station {str(df["station_name"].iloc[0])} on => {out}')
+
   except Exception as e:
     print('Connection error : {}'.format(e))
+
