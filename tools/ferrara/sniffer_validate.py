@@ -41,7 +41,7 @@ if __name__ == '__main__':
   df = df[ (df.date_time >= start) & (df.date_time < stop) ]
   if 'kind' not in df.columns: df['kind'] = 'wifi'
   if '_id' not in df.columns: df['_id'] = 1
-  print(df)
+  # print(df)
 
   """
   print(df[ df.station_name == 'Via del Podestà (3)'][['date_time', 'mac_address']].groupby('date_time').count().to_csv('3.csv'))
@@ -74,11 +74,14 @@ if __name__ == '__main__':
 
   cnt = stats.values
 
-  if args.bin:
-    cnt[ cnt > 0 ] = 1
-    color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], interpolation='none', vmin=0, vmax=1)
-  else:
-    color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], interpolation='none')
+  # if args.bin:
+  #   cnt[ cnt > 0 ] = 1
+  #   color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], interpolation='none', vmin=0, vmax=1)
+  # else:
+  #   color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], interpolation='none')
+
+  cnt[ cnt > 0 ] = 1
+  color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], interpolation='none', vmin=0, vmax=1)
 
   #color_map = plt.imshow(cnt.T, extent=[0, 1, 0, 1], vmin = 0)
   color_map.set_cmap('plasma')
@@ -106,4 +109,5 @@ if __name__ == '__main__':
   else:
     ptype = 'bin' if args.bin else 'cmap'
     plt.savefig(f'{base}_{ptype}_vali_{freq}.png')
+    print(f'plot saved')
   plt.close()

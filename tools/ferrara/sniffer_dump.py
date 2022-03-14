@@ -203,9 +203,13 @@ if __name__ == '__main__':
       while tnow < stop:
         try:
           trange = tnow + timedelta(hours=time_chunk)
-          start_date = pd.to_datetime(tnow, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
-          stop_date = pd.to_datetime(trange, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
-  
+          if tnow > pd.to_datetime('2022-03-11 15:40:00', format='%Y-%m-%d %H:%M:%S'):
+            start_date = pd.to_datetime(tnow, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M:%S')
+            stop_date = pd.to_datetime(trange, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M:%S')
+          else:
+            start_date = pd.to_datetime(tnow, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
+            stop_date = pd.to_datetime(trange, format='%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y_%H:%M')
+
           data = {
               "apikey": "F0T+w/RZrYHpKoXW/I+krQ==",
               # "station_id": f'{str(dict_inv["Ferrara-1"])}',
@@ -219,12 +223,21 @@ if __name__ == '__main__':
           
           print(f'Data received by sub-query: from {tnow} to {trange}')
           df = pd.DataFrame.from_dict(r.json())
-          col_list = ["_id","date_time","mac-address","data_type","station_id"]
+
+          # with open(f'{outdir}/format.json', 'w') as outjson:
+          #   json.dump(r.json(), outjson, indent=2)
+
+          col_list = ["mac-address","power","station_id","timestamp","date_time"]
           df = df[col_list]
           df['station_name'] = df['station_id'].map(dict_station)
-          df = df.drop(columns=['station_id', '_id'])
-          df = df.rename(columns={"data_type": "kind"})
-          df['date_time'] = pd.to_datetime(df.date_time, format='%d/%m/%Y_%H:%M')
+          df['kind'] = 'wifi'
+          df = df.drop(columns=['station_id', 'power', 'timestamp'])
+          
+          if tnow > pd.to_datetime('2022-03-11 15:40:00', format='%Y-%m-%d %H:%M:%S'):
+            df['date_time'] = pd.to_datetime(df.date_time, format='%d/%m/%Y_%H:%M:%S')
+          else:
+            df['date_time'] = pd.to_datetime(df.date_time, format='%d/%m/%Y_%H:%M')
+
           df = df.sort_values(by="date_time")
           df = df.set_index('date_time')
           df_list.append(df)
@@ -236,5 +249,7 @@ if __name__ == '__main__':
 
       out = f'{outdir}/{base}_{start_tag}_{stop_tag}_{args.dev}.csv'
       df_all.to_csv(out, sep=';', header=True, index=True)      
-      print(f'Data saved for station on => {out}')      
+      print(f'Data saved for station on => {out}')
 
+  except Exception as e:
+  	print('Exception : {}'.format(e))
