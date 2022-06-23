@@ -162,7 +162,8 @@ and test with
 GET test
 curl --request GET http://localhost:9999
 POST test
-curl --header "Content-Type: application/json" --request POST --data '{"key": "value"}' http://localhost:9999/...```
+curl --header "Content-Type: application/json" --request POST --data '{"key": "value"}' http://localhost:9999/...
+```
 ### Further informations
 pvt folder contains configurations with sensitive production data and that open access is not available
 
