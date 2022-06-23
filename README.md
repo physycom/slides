@@ -156,7 +156,7 @@ An example of configuration file (config_file.json):
 
 ### Run
 After the building process (that should have produced a bin folder in slides) launch with
-```uvicorn sim-ws-oauth2:app --reload --port 9999'''
+```uvicorn sim-ws-oauth2:app --reload --port 9999```
 and test with
 ```
 GET test
