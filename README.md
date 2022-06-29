@@ -34,19 +34,19 @@ An example of configuration file `config_file.json`:
 }
 ```
 ### Explanation variables of config_file.json
-`work_dir`:
+`work_dir`: working directory
 
 `remove_local_output`:
 
-`city_name`:
+`city_name`: name of the city of interest
 
-`population`:
+`population`: number of locals 
 
-`daily_tourist`:
+`daily_tourist`: number of tourists per day
 
-`start_date`:
+`start_date`: start date of simulation
 
-`stop_date`:
+`stop_date`: stop date simulation
 
 
 ### Run locally for debugging purposes
