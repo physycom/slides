@@ -36,7 +36,7 @@ An example of configuration file `config_file.json`:
 ### Explanation variables of config_file.json
 `work_dir`: working directory
 
-`remove_local_output`: if true removes the local output of the simulation. 
+`remove_local_output`: if true removes the local intermediate/temporary output of the simulation. 
 
 `city_name`: name of the city of interest
 
