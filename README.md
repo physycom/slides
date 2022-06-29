@@ -36,13 +36,13 @@ An example of configuration file `config_file.json`:
 ### Explanation variables of config_file.json
 `work_dir`: working directory
 
-`remove_local_output`:
+`remove_local_output`: if true removes the local output of the simulation. 
 
 `city_name`: name of the city of interest
 
-`population`: number of locals 
+`population`: number of locals in the simulation
 
-`daily_tourist`: number of tourists per day
+`daily_tourist`: number of tourists per day in the simulation
 
 `start_date`: start date of simulation
 
