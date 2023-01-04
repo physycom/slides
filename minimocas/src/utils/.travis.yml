@@ -1,0 +1,21 @@
+language: cpp
+
+os:
+  - linux
+  - osx
+
+compiler:
+    - gcc
+    - clang
+
+addons:
+  apt:
+    packages:
+    - libboost-all-dev
+
+install:
+  - git clone https://github.com/physycom/sysconfig.git
+  - export WORKSPACE=$(pwd)
+
+script:
+  - mkdir build && cd build && cmake .. && cmake --build .
